@@ -1,0 +1,9 @@
+result
+result-*
+.direnv/
+.envrc.local
+.DS_Store
+*.swp
+findings.md
+progress.md
+task_plan.md
