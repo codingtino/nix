@@ -201,7 +201,7 @@ The installer asks about hibernation first. Enabling it automatically enables di
 
 ### Hardware discovery and nixos-hardware
 
-`nixos-generate-config` always creates the machine-specific local hardware module. It records filesystems, UUIDs, initrd modules, swap, CPU details, and storage topology.
+`nixos-generate-config` always creates the machine-specific local hardware module. It records filesystems, UUIDs, initrd modules, swap, CPU details, and storage topology. For LVM inside LUKS, the installer additionally records the outer LUKS UUID in the local wrapper because `nixos-generate-config` does not trace a filesystem through LVM to its encrypted container.
 
 A nixos-hardware profile is an additional set of model-specific quirks and defaults. Upstream nixos-hardware does not currently provide a complete automatic DMI resolver, so the installer offers:
 
@@ -248,6 +248,34 @@ sudo nix flake update --flake /etc/nixos nix-config
 sudo nixos-rebuild build --flake /etc/nixos#system
 sudo nixos-rebuild switch --flake /etc/nixos#system
 ```
+
+### Recover an encrypted install missing its LUKS initrd declaration
+
+Installer versions before the explicit outer-LUKS fix could install successfully but then time out waiting for `/dev/mapper/nixosvg…-root` on first boot. Boot the NixOS minimal ISO, reconnect the network, and run:
+
+```bash
+sudo -i
+cryptsetup open /dev/nvme0n1p2 cryptroot
+vgchange -ay
+
+root_device=$(find /dev/mapper -maxdepth 1 -name 'nixosvg*-root' -print -quit)
+test -n "$root_device"
+umount -R /mnt 2>/dev/null || true
+mount -t btrfs -o subvol=@root,compress=zstd,noatime "$root_device" /mnt
+mkdir -p /mnt/nix /mnt/boot
+mount -t btrfs -o subvol=@nix,compress=zstd,noatime "$root_device" /mnt/nix
+mount -t vfat -o umask=0077 /dev/nvme0n1p1 /mnt/boot
+
+luks_uuid=$(cryptsetup luksUUID /dev/nvme0n1p2)
+sed -i \
+  's|hardwareConfiguration = ./hardware-configuration.nix;|hardwareConfiguration = { imports = [ ./hardware-configuration.nix ]; boot.initrd.luks.devices.cryptroot.device = "/dev/disk/by-uuid/'"$luks_uuid"'"; };|' \
+  /mnt/etc/nixos/flake.nix
+
+nixos-install --root /mnt --flake /mnt/etc/nixos#system --no-root-passwd
+reboot
+```
+
+Enter the installation's disk passphrase at `cryptsetup open` and again during the repaired boot. These commands do not repartition or format the disk.
 
 NixOS keeps bootable system generations. Roll back from the boot menu or run:
 

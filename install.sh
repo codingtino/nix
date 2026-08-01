@@ -834,9 +834,14 @@ create_btrfs_layout() {
 }
 
 write_local_nixos_flake() {
+  local luks_uuid=${1:-}
   local profile_expression="null"
+  local luks_configuration=""
   if [[ -n $SELECTED_HARDWARE_PROFILE ]]; then
     profile_expression="\"$SELECTED_HARDWARE_PROFILE\""
+  fi
+  if [[ -n $luks_uuid ]]; then
+    luks_configuration="        boot.initrd.luks.devices.cryptroot.device = \"/dev/disk/by-uuid/$luks_uuid\";"
   fi
 
   cat >/mnt/etc/nixos/flake.nix <<EOF
@@ -849,7 +854,10 @@ write_local_nixos_flake() {
     nixosConfigurations.system = nix-config.lib.mkNixosConfiguration {
       userName = "$USER_NAME";
       hostName = "$HOST_NAME";
-      hardwareConfiguration = ./hardware-configuration.nix;
+      hardwareConfiguration = {
+        imports = [ ./hardware-configuration.nix ];
+$luks_configuration
+      };
       hardwareProfile = $profile_expression;
       enableBroadcomSta = $ENABLE_BROADCOM_STA;
       enableHibernation = $ENABLE_HIBERNATION;
@@ -870,6 +878,7 @@ install_nixos() {
   local root_partition
   local swap_partition=""
   local crypt_partition
+  local luks_uuid=""
   local swap_end
   local vg_name
   local confirmation
@@ -955,6 +964,8 @@ install_nixos() {
 
     mkfs.fat -F 32 -n BOOT "$esp_partition"
     printf '%s' "$DISK_PASSWORD" | cryptsetup luksFormat --type luks2 --batch-mode --key-file - "$crypt_partition"
+    luks_uuid=$(cryptsetup luksUUID "$crypt_partition")
+    [[ -n $luks_uuid ]] || die "Could not determine the LUKS UUID for $crypt_partition."
     printf '%s' "$DISK_PASSWORD" | cryptsetup open --key-file - "$crypt_partition" cryptroot
     DISK_PASSWORD=""
 
@@ -1002,7 +1013,9 @@ install_nixos() {
 
   log "Generating local machine hardware configuration"
   nixos-generate-config --root /mnt
-  write_local_nixos_flake
+  # nixos-generate-config does not trace a Btrfs-on-LVM root through LVM to
+  # its outer LUKS container, so declare that initrd device explicitly.
+  write_local_nixos_flake "$luks_uuid"
 
   log "Locking the local wrapper and installing the shared configuration"
   nix --extra-experimental-features 'nix-command flakes' flake lock /mnt/etc/nixos
