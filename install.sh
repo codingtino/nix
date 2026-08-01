@@ -474,18 +474,19 @@ create_btrfs_layout() {
   local subvolume
 
   mkfs.btrfs -f -L nixos "$root_device"
-  mount "$root_device" /mnt
+  # Do not let mount reuse stale filesystem metadata after repartitioning.
+  mount -t btrfs "$root_device" /mnt
   for subvolume in @root @home @nix @log @snapshots; do
     btrfs subvolume create "/mnt/$subvolume"
   done
   umount /mnt
 
-  mount -o "subvol=@root,$mount_options" "$root_device" /mnt
+  mount -t btrfs -o "subvol=@root,$mount_options" "$root_device" /mnt
   mkdir -p /mnt/home /mnt/nix /mnt/var/log /mnt/.snapshots /mnt/boot
-  mount -o "subvol=@home,$mount_options" "$root_device" /mnt/home
-  mount -o "subvol=@nix,$mount_options" "$root_device" /mnt/nix
-  mount -o "subvol=@log,$mount_options" "$root_device" /mnt/var/log
-  mount -o "subvol=@snapshots,$mount_options" "$root_device" /mnt/.snapshots
+  mount -t btrfs -o "subvol=@home,$mount_options" "$root_device" /mnt/home
+  mount -t btrfs -o "subvol=@nix,$mount_options" "$root_device" /mnt/nix
+  mount -t btrfs -o "subvol=@log,$mount_options" "$root_device" /mnt/var/log
+  mount -t btrfs -o "subvol=@snapshots,$mount_options" "$root_device" /mnt/.snapshots
 }
 
 write_local_nixos_flake() {
@@ -643,7 +644,7 @@ install_nixos() {
 
   log "Creating Btrfs subvolumes"
   create_btrfs_layout "$root_partition"
-  mount "$esp_partition" /mnt/boot
+  mount -t vfat "$esp_partition" /mnt/boot
 
   if [[ $ENABLE_DISK_SWAP == true ]]; then
     mkswap -L swap "$swap_partition"
