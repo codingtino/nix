@@ -371,31 +371,45 @@ prompt_storage_choices() {
   local minimum_swap
   local recommended_swap
   local answer
+  local enable_swap
   local encryption_help
   local swap_help
+  local disk_swap_help
   local zram_help
   local hibernation_help
 
   encryption_help='No encryption is simplest but exposes files and hibernated memory if the disk is stolen.\nEncrypted mode uses one LUKS2 container with LVM root and optional swap volumes.\nIt requires a passphrase during boot and keeps both root and hibernation encrypted.'
-  swap_help='Disk swap protects against memory exhaustion. It consumes fixed disk space and causes writes.\nHibernation requires disk swap at least as large as RAM; a dedicated partition or LV is the most reliable design.'
-  zram_help='zram provides fast compressed swap in RAM and reduces SSD writes. It cannot store a hibernation image.\nIt can be used together with lower-priority disk swap and is recommended on low-memory laptops.'
+  swap_help='Swap protects against memory exhaustion. It can use compressed RAM through zram, persistent disk space, or both.\nHibernation automatically requires persistent disk swap; zram alone cannot store a hibernation image.'
+  disk_swap_help='Dedicated disk swap provides persistent swap capacity but consumes fixed disk space and causes writes.\nHibernation requires disk swap at least as large as RAM; a partition or encrypted LV is the most reliable design.'
+  zram_help='zram provides fast compressed swap in RAM and reduces SSD writes. It cannot store a hibernation image.\nIt can be used alone for normal swapping or together with lower-priority disk swap.'
   hibernation_help='Hibernation writes memory to disk and powers off. It requires disk swap with sufficient capacity.\nIf encryption is disabled, the hibernated memory image is readable from the disk.'
 
   ask_yes_no_help "Encrypt the NixOS system?" "yes" "$encryption_help"
   ENABLE_ENCRYPTION=$ANSWER_BOOL
 
-  ask_yes_no_help "Enable compressed zram swap?" "yes" "$zram_help"
-  ENABLE_ZRAM=$ANSWER_BOOL
-
   ask_yes_no_help "Enable hibernation?" "yes" "$hibernation_help"
   ENABLE_HIBERNATION=$ANSWER_BOOL
 
+  ENABLE_DISK_SWAP=false
+  ENABLE_ZRAM=false
   if [[ $ENABLE_HIBERNATION == true ]]; then
     ENABLE_DISK_SWAP=true
-    printf 'Dedicated disk swap will be created because hibernation requires it.\n' >"$TTY_DEVICE"
+    printf 'Swap is enabled with dedicated disk backing because hibernation requires it.\n' >"$TTY_DEVICE"
+    ask_yes_no_help "Also enable compressed zram swap?" "yes" "$zram_help"
+    ENABLE_ZRAM=$ANSWER_BOOL
   else
-    ask_yes_no_help "Create dedicated disk swap?" "yes" "$swap_help"
-    ENABLE_DISK_SWAP=$ANSWER_BOOL
+    while true; do
+      ask_yes_no_help "Enable swap?" "yes" "$swap_help"
+      enable_swap=$ANSWER_BOOL
+      [[ $enable_swap == true ]] || break
+
+      ask_yes_no_help "Create dedicated disk swap?" "yes" "$disk_swap_help"
+      ENABLE_DISK_SWAP=$ANSWER_BOOL
+      ask_yes_no_help "Also enable compressed zram swap?" "yes" "$zram_help"
+      ENABLE_ZRAM=$ANSWER_BOOL
+      [[ $ENABLE_DISK_SWAP == true || $ENABLE_ZRAM == true ]] && break
+      printf 'Select at least one swap type, or disable swap.\n' >"$TTY_DEVICE"
+    done
   fi
 
   SWAP_GIB=0
