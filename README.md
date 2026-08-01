@@ -55,7 +55,7 @@ The installer asks for:
 - explicit consent for proprietary/insecure Broadcom STA Wi-Fi when matching hardware is detected
 - exact final destructive confirmation
 
-No password is written to Git, a Nix expression, logs, or the Nix store. The login password is set directly in the installed shadow database. Root password login is locked and root SSH login is disabled; the selected user has `sudo` through the `wheel` group.
+No password is written to Git, a Nix expression, logs, or the Nix store. The login password is set directly in the installed shadow database. Root password login is locked and root SSH login is disabled; the selected user has `sudo` through the `wheel` group. After a successful installation, the system reboots automatically after a five-second USB-removal notice.
 
 ### Btrfs layouts
 
@@ -89,7 +89,7 @@ GPT
         └── Btrfs root LV
 ```
 
-The encrypted layout needs one LUKS unlock during boot and keeps both root data and hibernated memory encrypted. The installer recommends a separate disk passphrase but allows explicitly reusing the login password.
+The encrypted layout needs one LUKS unlock during boot and keeps both root data and hibernated memory encrypted. The installer recommends a separate disk passphrase but allows explicitly reusing the login password. The EFI partition uses a restrictive `umask=0077` mount option so systemd-boot's random seed is not accessible to non-root users.
 
 The installer asks about hibernation first. Enabling it automatically enables disk swap, disables zram, and enforces at least RAM plus 4 GiB. Without hibernation, the installer first asks whether to enable swap at all and only then offers disk swap, zram, or both. Without disk encryption, a hibernation image is not confidential.
 

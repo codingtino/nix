@@ -19,6 +19,9 @@
         efi.canTouchEfiVariables = true;
       };
 
+      # Keep systemd-boot's random seed private on the FAT EFI partition.
+      fileSystems."/boot".options = lib.mkAfter [ "umask=0077" ];
+
       nix = {
         package = pkgs.nix;
         settings = {

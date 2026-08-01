@@ -546,7 +546,6 @@ install_nixos() {
   local vg_name
   local confirmation
   local layout_description
-  local reboot_answer
 
   [[ $EUID -eq 0 ]] || die "Run the NixOS installer path as root."
   [[ -r /etc/os-release ]] || die "Cannot identify the operating system."
@@ -660,7 +659,7 @@ install_nixos() {
 
   log "Creating Btrfs subvolumes"
   create_btrfs_layout "$root_partition"
-  mount -t vfat "$esp_partition" /mnt/boot
+  mount -t vfat -o umask=0077 "$esp_partition" /mnt/boot
 
   if [[ $ENABLE_DISK_SWAP == true ]]; then
     mkswap -L swap "$swap_partition"
@@ -683,13 +682,9 @@ install_nixos() {
 
   log "NixOS installation completed successfully"
   printf 'Local configuration: /etc/nixos\nFuture rebuild: sudo nixos-rebuild switch --flake /etc/nixos#system\n' >"$TTY_DEVICE"
-  ask_yes_no_help "Reboot now?" "yes" "Rebooting starts the installed system. Remove the installer USB when firmware restarts."
-  reboot_answer=$ANSWER_BOOL
-  if [[ $reboot_answer == true ]]; then
-    log "Rebooting in 5 seconds; remove the installer USB"
-    sleep 5
-    systemctl reboot
-  fi
+  log "Rebooting in 5 seconds; remove the installer USB"
+  sleep 5
+  systemctl reboot
 }
 
 main() {
