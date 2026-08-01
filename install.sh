@@ -33,6 +33,9 @@ CLI_ZRAM=""
 CLI_SWAP_GIB=""
 CLI_BROADCOM_STA=""
 CLI_CONFIRM_ERASE=""
+DETECTED_HARDWARE_MODEL=""
+PRESERVE_APPLE_ESP=false
+APPLE_ESP_BACKUP=""
 
 show_help() {
   cat <<'EOF'
@@ -53,7 +56,7 @@ NixOS identity:
   --hostname NAME                    Installed hostname
 
 NixOS hardware and target:
-  --hardware-profile auto|none|NAME  nixos-hardware profile selection
+  --hardware-profile auto|none|NAME  Supported hardware profile selection
   --disk DEVICE                      Exact writable target disk, for example /dev/nvme0n1
   --broadcom-sta yes|no              Enable proprietary Broadcom STA/WL support
 
@@ -552,25 +555,37 @@ select_disk() {
 
 select_hardware_profile() {
   local dmi
+  local product_name
   local choice
   local normalized
 
-  dmi="$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || true) $(cat /sys/class/dmi/id/product_name 2>/dev/null || true) $(cat /sys/class/dmi/id/product_version 2>/dev/null || true)"
+  product_name=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
+  dmi="$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || true) $product_name $(cat /sys/class/dmi/id/product_version 2>/dev/null || true)"
+  DETECTED_HARDWARE_MODEL=$product_name
+  PRESERVE_APPLE_ESP=false
   AUTO_HARDWARE_PROFILE=""
   case "$dmi" in
     *20U1* | *20U2* | *"ThinkPad L14 Gen 1"*) AUTO_HARDWARE_PROFILE="lenovo-thinkpad-l14-intel" ;;
     *MacBookAir6,2*) AUTO_HARDWARE_PROFILE="apple-macbook-air-6" ;;
+    *MacBookPro13,2*) AUTO_HARDWARE_PROFILE="apple-macbook-pro-13-2" ;;
+    *MacBookPro14,2*) AUTO_HARDWARE_PROFILE="apple-macbook-pro-14-2" ;;
+  esac
+  case "$product_name" in
+    MacBookPro13,2 | MacBookPro14,2) PRESERVE_APPLE_ESP=true ;;
   esac
 
-  log "Fetching the pinned nixos-hardware profile list"
+  log "Fetching the pinned supported hardware profile list"
   HARDWARE_PROFILE_NAMES=$(nix --extra-experimental-features 'nix-command flakes' \
     eval --raw "$REPOSITORY_REF#lib.hardwareProfileNamesText")
 
   printf 'Detected hardware: %s\n' "$dmi" >"$TTY_DEVICE"
   if [[ -n $AUTO_HARDWARE_PROFILE ]]; then
-    printf 'Suggested nixos-hardware profile: %s\n' "$AUTO_HARDWARE_PROFILE" >"$TTY_DEVICE"
+    printf 'Suggested hardware profile: %s\n' "$AUTO_HARDWARE_PROFILE" >"$TTY_DEVICE"
   else
-    printf 'No conservative nixos-hardware profile mapping is known for this model.\n' >"$TTY_DEVICE"
+    printf 'No conservative hardware profile mapping is known for this model.\n' >"$TTY_DEVICE"
+  fi
+  if [[ $PRESERVE_APPLE_ESP == true ]]; then
+    printf 'Apple T1 MacBook Pro detected: the existing Apple EFI contents must be preserved before erasing its disk.\n' >"$TTY_DEVICE"
   fi
 
   if [[ -n $CLI_HARDWARE_PROFILE ]]; then
@@ -605,7 +620,7 @@ select_hardware_profile() {
         printf '\n%s\n\n' "$HARDWARE_PROFILE_NAMES" >"$TTY_DEVICE"
         ;;
       help | h | \?)
-        printf '\nThe generated hardware scan supplies filesystems, UUIDs and detected modules.\nA nixos-hardware profile adds model-specific quirks and defaults. Auto uses only\nknown DMI mappings; none is valid; exact-name accepts an exported official module.\n\n' >"$TTY_DEVICE"
+        printf '\nThe generated hardware scan supplies filesystems, UUIDs and detected modules.\nA supported profile adds model-specific quirks and defaults. Auto uses only known\nDMI mappings; none is valid; exact-name accepts a profile exported by this flake.\n\n' >"$TTY_DEVICE"
         ;;
       *)
         if printf '%s\n' "$HARDWARE_PROFILE_NAMES" | grep -Fxq "$choice"; then
@@ -670,17 +685,24 @@ prompt_storage_choices() {
   local disk_swap_help
   local zram_help
   local hibernation_help
+  local hibernation_default="yes"
 
   encryption_help='No encryption is simplest but exposes files and hibernated memory if the disk is stolen.\nEncrypted mode uses one LUKS2 container with LVM root and optional swap volumes.\nIt requires a passphrase during boot and keeps both root and hibernation encrypted.'
   swap_help='Swap protects against memory exhaustion. It can use compressed RAM through zram, persistent disk space, or both.\nHibernation automatically requires persistent disk swap; zram alone cannot store a hibernation image.'
   disk_swap_help='Dedicated disk swap provides persistent swap capacity but consumes fixed disk space and causes writes.\nHibernation requires disk swap at least as large as RAM; a partition or encrypted LV is the most reliable design.'
   zram_help='zram provides fast compressed swap in RAM and reduces SSD writes. It cannot store a hibernation image.\nIt can be used alone for normal swapping or together with lower-priority disk swap.'
   hibernation_help='Hibernation writes memory to disk and powers off. It requires persistent disk swap with sufficient capacity.\nThis installer disables zram in hibernation mode for a simple, deterministic swap layout.\nIf encryption is disabled, the hibernated memory image is readable from the disk.'
+  case "$DETECTED_HARDWARE_MODEL" in
+    MacBookPro13,2 | MacBookPro14,2)
+      hibernation_default="no"
+      hibernation_help="$hibernation_help\nSuspend/resume and hibernation remain unreliable on this MacBook Pro family, so hibernation defaults off."
+      ;;
+  esac
 
   ask_or_use_bool "$CLI_ENCRYPT" "--encrypt" "Encrypt the NixOS system?" "yes" "$encryption_help"
   ENABLE_ENCRYPTION=$ANSWER_BOOL
 
-  ask_or_use_bool "$CLI_HIBERNATION" "--hibernation" "Enable hibernation?" "yes" "$hibernation_help"
+  ask_or_use_bool "$CLI_HIBERNATION" "--hibernation" "Enable hibernation?" "$hibernation_default" "$hibernation_help"
   ENABLE_HIBERNATION=$ANSWER_BOOL
 
   ENABLE_DISK_SWAP=false
@@ -788,28 +810,124 @@ prompt_storage_choices() {
 configure_broadcom() {
   local vendor_file
   local vendor_id
+  local device_id
   local class_id
   local broadcom_network=false
+  local broadcom_sta_candidate=false
 
   ENABLE_BROADCOM_STA=false
   for vendor_file in /sys/bus/pci/devices/*/vendor; do
     [[ -r $vendor_file ]] || continue
     vendor_id=$(<"$vendor_file")
+    device_id=$(<"${vendor_file%/vendor}/device")
     class_id=$(<"${vendor_file%/vendor}/class")
     if [[ $vendor_id == "0x14e4" && $class_id == 0x02* ]]; then
       broadcom_network=true
-      break
+      [[ $device_id == "0x43a0" ]] && broadcom_sta_candidate=true
     fi
   done
+  if [[ $DETECTED_HARDWARE_MODEL == "MacBookAir6,2" && $broadcom_network == true ]]; then
+    broadcom_sta_candidate=true
+  fi
+
+  case "$DETECTED_HARDWARE_MODEL:$SELECTED_HARDWARE_PROFILE" in
+    MacBookPro13,2:* | MacBookPro14,2:* | *:apple-macbook-pro-13-2 | *:apple-macbook-pro-14-2)
+      [[ $CLI_BROADCOM_STA != true ]] || \
+        die "--broadcom-sta yes is incompatible with A1706 hardware profiles; BCM43602 uses brcmfmac."
+      [[ $broadcom_network == false ]] || \
+        printf 'Broadcom BCM43602-class Wi-Fi will use brcmfmac; proprietary STA is not enabled.\n' >"$TTY_DEVICE"
+      return
+      ;;
+  esac
 
   if [[ -n $CLI_BROADCOM_STA ]]; then
     ENABLE_BROADCOM_STA=$CLI_BROADCOM_STA
-  elif [[ $broadcom_network == true ]]; then
+  elif [[ $broadcom_sta_candidate == true ]]; then
     require_interactive_value "--broadcom-sta"
-    ask_yes_no_help "Broadcom Wi-Fi detected. Enable proprietary broadcom_sta/wl?" "yes" \
+    ask_yes_no_help "Broadcom BCM4360 Wi-Fi detected. Enable proprietary broadcom_sta/wl?" "yes" \
       'The BCM4360 commonly needs the proprietary wl driver. nixpkgs may mark broadcom_sta insecure.\nAccepting permits only this unfree/insecure package and blacklists conflicting open drivers.\nDeclining may leave Wi-Fi unavailable; wired Ethernet remains unaffected.'
     ENABLE_BROADCOM_STA=$ANSWER_BOOL
+  elif [[ $broadcom_network == true ]]; then
+    printf 'Broadcom network hardware detected without a known STA mapping; keeping the kernel default driver.\n' >"$TTY_DEVICE"
   fi
+}
+
+find_efi_system_partition() {
+  local disk=$1
+  local device
+  local partition_type
+
+  while IFS= read -r device; do
+    partition_type=$(blkid -s PART_ENTRY_TYPE -o value "$device" 2>/dev/null || true)
+    partition_type=$(printf '%s' "$partition_type" | tr '[:upper:]' '[:lower:]')
+    if [[ $partition_type == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" ]]; then
+      printf '%s\n' "$device"
+      return
+    fi
+  done < <(lsblk -nrpo NAME "$disk")
+  return 0
+}
+
+has_apple_esp_files() {
+  local root=$1
+  local apple_directory
+
+  apple_directory=$(find "$root/EFI" -maxdepth 1 -type d -iname apple -print -quit 2>/dev/null || true)
+  [[ -n $apple_directory ]] && \
+    [[ -n $(find "$apple_directory" -type f -print -quit 2>/dev/null || true) ]]
+}
+
+backup_apple_esp() {
+  local esp_partition
+  local mount_dir
+
+  [[ $(findmnt -no FSTYPE /run) == "tmpfs" ]] || \
+    die "Refusing to preserve Apple EFI files outside the installer's memory-backed /run."
+  esp_partition=$(find_efi_system_partition "$SELECTED_DISK")
+  [[ -n $esp_partition ]] || \
+    die "No EFI System Partition was found on $SELECTED_DISK; refusing to erase this Apple T1 MacBook Pro."
+
+  mount_dir=$(mktemp -d /run/nixos-apple-esp.XXXXXX)
+  if ! mount -t vfat -o ro,umask=0077 "$esp_partition" "$mount_dir"; then
+    rm -rf "$mount_dir"
+    die "Could not mount the existing Apple EFI System Partition: $esp_partition"
+  fi
+
+  if ! has_apple_esp_files "$mount_dir"; then
+    umount "$mount_dir"
+    rm -rf "$mount_dir"
+    die "The existing ESP has no EFI/APPLE files; refusing to erase firmware needed by the T1/Touch Bar."
+  fi
+
+  APPLE_ESP_BACKUP=/run/nixos-apple-esp.tar
+  rm -f "$APPLE_ESP_BACKUP"
+  if ! tar -C "$mount_dir" -cpf "$APPLE_ESP_BACKUP" .; then
+    umount "$mount_dir"
+    rm -rf "$mount_dir" "$APPLE_ESP_BACKUP"
+    APPLE_ESP_BACKUP=""
+    die "Could not archive the existing Apple EFI contents; the disk was not erased."
+  fi
+  if ! umount "$mount_dir"; then
+    rm -rf "$APPLE_ESP_BACKUP"
+    APPLE_ESP_BACKUP=""
+    die "Could not unmount the existing Apple EFI partition; the disk was not erased."
+  fi
+  rm -rf "$mount_dir"
+  if [[ ! -s $APPLE_ESP_BACKUP ]] || ! tar -tf "$APPLE_ESP_BACKUP" >/dev/null; then
+    rm -f "$APPLE_ESP_BACKUP"
+    APPLE_ESP_BACKUP=""
+    die "The Apple EFI backup could not be verified; the disk was not erased."
+  fi
+  log "Verified an in-memory backup of the existing Apple EFI contents"
+}
+
+restore_apple_esp() {
+  [[ -s $APPLE_ESP_BACKUP ]] || die "The verified Apple EFI backup is unavailable after repartitioning."
+  tar -C /mnt/boot -xpf "$APPLE_ESP_BACKUP"
+  sync
+  has_apple_esp_files /mnt/boot || \
+    die "The Apple EFI contents were not restored successfully. Keep the installer running for recovery."
+  log "Restored the preserved Apple EFI contents"
 }
 
 create_btrfs_layout() {
@@ -892,9 +1010,9 @@ install_nixos() {
   [[ -d /sys/firmware/efi/efivars ]] || die "Boot the installer in UEFI mode."
   command -v nixos-install >/dev/null || die "nixos-install is unavailable; run this from the minimal ISO."
 
-  require_commands awk blockdev btrfs cat curl findmnt grep install lsblk mkfs.btrfs \
-    mkfs.fat mkswap mount nix nixos-enter nixos-generate-config nixos-install parted \
-    partprobe sed sleep swapon swapoff sync systemctl tr udevadm umount wipefs xargs
+  require_commands awk blkid blockdev btrfs cat curl find findmnt grep install lsblk mkfs.btrfs \
+    mkfs.fat mktemp mkswap mount nix nixos-enter nixos-generate-config nixos-install parted \
+    partprobe rm sed sleep swapon swapoff sync systemctl tar tr udevadm umount wipefs xargs
 
   log "Checking network access before collecting destructive choices"
   curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
@@ -933,6 +1051,9 @@ install_nixos() {
   printf '  Username:         %s\n' "$USER_NAME" >"$TTY_DEVICE"
   printf '  Hostname:         %s\n' "$HOST_NAME" >"$TTY_DEVICE"
   printf '  Hardware profile: %s\n' "${SELECTED_HARDWARE_PROFILE:-none}" >"$TTY_DEVICE"
+  if [[ $PRESERVE_APPLE_ESP == true ]]; then
+    printf '  Apple EFI files:  preserve and restore before installation\n' >"$TTY_DEVICE"
+  fi
   printf '  zram:             %s\n' "$ENABLE_ZRAM" >"$TTY_DEVICE"
   printf '  hibernation:      %s\n' "$ENABLE_HIBERNATION" >"$TTY_DEVICE"
   printf '\nEVERY PARTITION ON %s WILL BE DESTROYED.\n' "$SELECTED_DISK" >"$TTY_DEVICE"
@@ -944,6 +1065,11 @@ install_nixos() {
     prompt "Type exactly 'ERASE $SELECTED_DISK' to continue: "
     confirmation=$REPLY
     [[ $confirmation == "ERASE $SELECTED_DISK" ]] || die "Destructive confirmation did not match; nothing was changed."
+  fi
+
+  if [[ $PRESERVE_APPLE_ESP == true ]]; then
+    log "Preserving Apple EFI contents before any destructive operation"
+    backup_apple_esp
   fi
 
   log "Erasing $SELECTED_DISK"
@@ -1005,6 +1131,9 @@ install_nixos() {
   log "Creating Btrfs subvolumes"
   create_btrfs_layout "$root_partition"
   mount -t vfat -o umask=0077 "$esp_partition" /mnt/boot
+  if [[ $PRESERVE_APPLE_ESP == true ]]; then
+    restore_apple_esp
+  fi
 
   if [[ $ENABLE_DISK_SWAP == true ]]; then
     mkswap -L swap "$swap_partition"
@@ -1026,6 +1155,12 @@ install_nixos() {
   LOGIN_PASSWORD=""
   nixos-enter --root /mnt -c 'passwd --lock root'
   sync
+  if [[ -n $APPLE_ESP_BACKUP ]]; then
+    has_apple_esp_files /mnt/boot || \
+      die "Apple EFI files disappeared during installation; the in-memory backup remains available for recovery."
+    rm -f "$APPLE_ESP_BACKUP"
+    APPLE_ESP_BACKUP=""
+  fi
 
   log "NixOS installation completed successfully"
   printf 'Local configuration: /etc/nixos\nFuture rebuild: sudo nixos-rebuild switch --flake /etc/nixos#system\n' >"$TTY_DEVICE"

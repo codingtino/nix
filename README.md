@@ -5,13 +5,16 @@ One flake-based, dendritic configuration with a single interactive or flag-drive
 - **NixOS:** installs the same system and Home Manager configuration on supported x86-64 machines while keeping username, hostname, disks, UUIDs, encryption choices, and generated hardware configuration local under `/etc/nixos`.
 - **macOS:** installs official upstream Nix when needed and applies nix-darwin, Home Manager, and Homebrew without changing the existing macOS computer name.
 
-The currently tested NixOS hardware is:
+Built-in exact-DMI NixOS mappings currently cover:
 
-- Lenovo ThinkPad L14 Gen 1 Intel, machine types 20U1/20U2
+- Lenovo ThinkPad L14 Gen 1 Intel, machine types 20U1/20U2 (live-tested)
 - Apple MacBook Air 13-inch Early 2014, model identifier MacBookAir6,2
+- Apple MacBook Pro 13-inch Touch Bar 2016/2017, enclosure A1706, model identifiers MacBookPro13,2 and MacBookPro14,2 (configuration complete; live hardware validation pending)
+
+There is no known Apple MacBook Pro **A1606**; A1706 is the likely enclosure number intended. Verify the model identifier as described in [MacBook Pro A1706 notes](#macbook-pro-a1706-notes).
 
 > [!CAUTION]
-> The NixOS path is a destructive operating-system installer. It shows writable disks and requires either a typed confirmation or an exact matching `--confirm-erase` device, but the selected disk is then erased completely.
+> The NixOS path is a destructive operating-system installer. It shows writable disks and requires either a typed confirmation or an exact matching `--confirm-erase` device, but every partition on the selected disk is then destroyed and recreated. On detected A1706/T1 models only, the installer requires, verifies, and restores the existing `EFI/APPLE` files; this does not preserve macOS or user data.
 
 ## Quick start
 
@@ -54,7 +57,7 @@ Use `--non-interactive` to prohibit every prompt. Missing or contradictory requi
 | `--password PASSWORD` | NixOS login password as a plain command-line argument |
 | `--password-file PATH` | Read the NixOS login password from a file |
 | `--hostname NAME` | Installed NixOS hostname |
-| `--hardware-profile auto\|none\|NAME` | Use the conservative DMI suggestion, no profile, or an exact pinned nixos-hardware export |
+| `--hardware-profile auto\|none\|NAME` | Use the conservative DMI suggestion, no profile, or an exact supported profile exported by this flake |
 | `--disk DEVICE` | Exact writable target disk shown by `lsblk` |
 | `--broadcom-sta yes\|no` | Explicitly enable or disable proprietary Broadcom STA/WL support |
 | `--encrypt yes\|no` | Enable or disable LUKS2 encryption |
@@ -151,14 +154,15 @@ The installer asks for:
 
 - username and a hidden, confirmed login password
 - hostname
-- nixos-hardware profile
+- supported hardware profile
 - target disk from the writable disks reported by `lsblk`
 - disk encryption
 - hibernation; enabling it automatically enables dedicated disk swap and disables zram
 - whether to enable swap at all when hibernation is disabled
 - dedicated disk swap and compressed zram choices only when hibernation is disabled and swap is enabled
 - an encryption passphrase when encryption is selected
-- explicit consent for proprietary/insecure Broadcom STA Wi-Fi when matching hardware is detected
+- explicit consent for proprietary/insecure Broadcom STA Wi-Fi only when a known BCM4360 path is detected
+- automatic in-memory backup and verified restoration of Apple EFI firmware files on MacBookPro13,2/14,2
 - exact final destructive confirmation
 
 No password is written to Git, a Nix expression, logs, or the Nix store. The login password is set directly in the installed shadow database. Root password login is locked and root SSH login is disabled; the selected user has `sudo` through the `wheel` group. After a successful installation, the system reboots automatically after a five-second USB-removal notice.
@@ -195,7 +199,7 @@ GPT
         └── Btrfs root LV
 ```
 
-The encrypted layout needs one LUKS unlock during boot and keeps both root data and hibernated memory encrypted. The installer recommends a separate disk passphrase but allows explicitly reusing the login password. The EFI partition uses a restrictive `umask=0077` mount option so systemd-boot's random seed is not accessible to non-root users.
+The encrypted layout needs one LUKS unlock during boot and keeps both root data and hibernated memory encrypted. The installer recommends a separate disk passphrase but allows explicitly reusing the login password. The EFI partition uses a restrictive `umask=0077` mount option so systemd-boot's random seed is not accessible to non-root users. On MacBookPro13,2/14,2, Apple SPI keyboard modules are included in initrd so the built-in keyboard can enter the LUKS passphrase.
 
 The installer asks about hibernation first. Enabling it automatically enables disk swap, disables zram, and enforces at least RAM plus 4 GiB. Without hibernation, the installer first asks whether to enable swap at all and only then offers disk swap, zram, or both. Without disk encryption, a hibernation image is not confidential.
 
@@ -203,7 +207,7 @@ The installer asks about hibernation first. Enabling it automatically enables di
 
 `nixos-generate-config` always creates the machine-specific local hardware module. It records filesystems, UUIDs, initrd modules, swap, CPU details, and storage topology. For LVM inside LUKS, the installer additionally records the outer LUKS UUID in the local wrapper because `nixos-generate-config` does not trace a filesystem through LVM to its encrypted container.
 
-A nixos-hardware profile is an additional set of model-specific quirks and defaults. Upstream nixos-hardware does not currently provide a complete automatic DMI resolver, so the installer offers:
+A hardware profile is an additional set of model-specific quirks and defaults. Most names come directly from the pinned nixos-hardware input; this repository also supplies profiles for the two A1706 DMI identifiers that upstream does not currently cover. Upstream nixos-hardware does not provide a complete automatic DMI resolver, so the installer offers:
 
 - conservative automatic suggestion
 - no profile
@@ -216,8 +220,42 @@ Built-in suggestions are:
 |---|---|
 | ThinkPad L14 20U1/20U2 | `lenovo-thinkpad-l14-intel` |
 | MacBookAir6,2 | `apple-macbook-air-6` |
+| MacBookPro13,2 | `apple-macbook-pro-13-2` |
+| MacBookPro14,2 | `apple-macbook-pro-14-2` |
 
 The MacBookAir6,2 commonly has BCM4360 Wi-Fi. The installer asks before permitting and enabling the proprietary `broadcom_sta`/`wl` driver. Use wired USB Ethernet during installation because the minimal ISO may not support that Wi-Fi adapter.
+
+#### MacBook Pro A1706 notes
+
+A1706 is the enclosure number for two 13-inch Touch Bar generations. Check the exact model before installation:
+
+```bash
+# Existing macOS:
+system_profiler SPHardwareDataType | awk -F ': ' '/Model Identifier/ { print $2 }'
+
+# NixOS installer ISO:
+cat /sys/class/dmi/id/product_name
+```
+
+The result must be `MacBookPro13,2` (2016) or `MacBookPro14,2` (2017) for automatic support. The profiles provide early Apple SPI keyboard/trackpad loading, HiDPI/Intel/firmware defaults, libinput quirks, and an NVMe D3cold workaround needed for resume.
+
+These T1 models need Apple firmware files from the original EFI System Partition to initialize iBridge devices. After destructive confirmation but **before `wipefs`**, the installer:
+
+1. locates the existing EFI System Partition on the selected disk
+2. requires non-empty `EFI/APPLE` contents
+3. archives and verifies the entire ESP in memory-backed `/run`
+4. recreates the disk and 1 GiB ESP
+5. restores the preserved files before installing systemd-boot
+
+Any pre-erasure backup or archive-verification failure aborts before disk erasure. A restoration failure after repartitioning stops the install and leaves the archive in `/run` for recovery. Missing Apple EFI files also abort; restore the original ESP from a backup or reinstall/update macOS first. Keeping macOS is the safest route for future Apple firmware updates, but it requires manual dual-boot partitioning or a separate target disk—the full-disk installer does not preserve a macOS volume. The automatic preservation step protects firmware only—**all volumes and user files on the selected disk are erased**.
+
+Known validation boundaries for the first installation:
+
+- BCM43602 Wi-Fi uses the in-kernel `brcmfmac` driver; proprietary `broadcom_sta` is rejected. Historical firmware/regulatory issues can make Wi-Fi unreliable, so use USB Ethernet for installation.
+- The internal keyboard/trackpad, Intel graphics, NVMe, display, USB, Thunderbolt, camera, and Bluetooth have upstream driver paths, but this exact NixOS configuration still needs testing on the laptop.
+- Touch Bar and Touch ID are not enabled. The available Touch Bar code is an out-of-tree kernel driver with model-specific hard-freeze risk; use an external keyboard when Escape or function keys are needed.
+- Internal audio is not claimed until tested; USB or HDMI audio is the fallback.
+- The NVMe workaround improves resume, but suspend/resume can remain slow or unreliable. Hibernation therefore defaults to `no` on these models; test it only after ordinary boot and suspend are stable.
 
 ### Local-only machine configuration
 
@@ -231,7 +269,7 @@ The installer creates:
 └── configuration.nix          # generated fallback; the wrapper uses the hardware file
 ```
 
-The local wrapper has a fixed output named `system` and imports this public repository through its lock file. Username, hostname, hardware profile choice, UUIDs, encryption devices, zram, Broadcom consent, and hibernation remain outside Git.
+The local wrapper has a fixed output named `system` and imports this public repository through its lock file. Username, hostname, hardware profile choice, UUIDs, encryption devices, zram, Broadcom consent, and hibernation remain outside Git. Preserved Apple EFI files stay on the local EFI partition and are never added to Git or the Nix store.
 
 Nix does not select a configuration from the hostname. The explicit `#system` output selects it:
 
@@ -347,7 +385,7 @@ The Darwin builder supports Apple Silicon and Intel Darwin. `macmon` and the pin
 - x86-64 platform and UEFI systemd-boot
 - Btrfs and optional encrypted storage generated by the installer
 - optional hibernation and zram
-- selected nixos-hardware profile
+- selected upstream or repository-owned hardware profile
 - NetworkManager and DHCP
 - OpenSSH with root login disabled
 - DankGreeter login screen with synchronized DankMaterialShell theming
@@ -397,5 +435,6 @@ Local wrapper flakes call the exported builders with local values. This separate
 - Disk partitioning, UUIDs, encryption metadata, passwords, SSH keys, and hostnames are local state.
 - Homebrew and the Mac App Store remain mutable external systems rather than Nix-store reproducible artifacts.
 - Btrfs snapshots are not backups.
-- Broadcom STA is proprietary and may be marked insecure; it is enabled only after explicit installer consent.
+- Broadcom STA is proprietary and may be marked insecure; it is enabled only after explicit consent for known-compatible hardware and is rejected on A1706.
+- A1706 Apple EFI firmware is copied only between the old and new local ESP through a temporary `/run` archive; it is not made reproducible by Nix.
 - macOS itself and Apple system updates remain outside nix-darwin.
