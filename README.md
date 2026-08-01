@@ -55,6 +55,7 @@ Small active examples for Dock and Finder are in `modules/macos-defaults.nix`.
 - ThinkPad L14 Intel profile from `nixos-hardware`
 - UEFI systemd-boot
 - NetworkManager and DHCP
+- OpenSSH with root login disabled and password login enabled for initial setup
 - SDDM with its Wayland greeter
 - MangoWC, selected as the default session
 - DankMaterialShell (DMS)
@@ -138,10 +139,10 @@ nix --version
 
 ### 3. Clone this repository
 
-Replace the URL with the final GitHub repository URL:
+Clone this repository:
 
 ```bash
-git clone https://github.com/OWNER/REPOSITORY.git ~/nix-config
+git clone https://github.com/codingtino/nix.git ~/nix-config
 cd ~/nix-config
 ```
 
@@ -223,6 +224,16 @@ Edit `/mnt/etc/nixos/configuration.nix`. Keep its generated hardware import and 
   boot.loader.efi.canTouchEfiVariables = true;
   networking.networkmanager.enable = true;
 
+  services.openssh = {
+    enable = true;
+    openFirewall = true;
+    settings = {
+      PermitRootLogin = "no";
+      PasswordAuthentication = true;
+      KbdInteractiveAuthentication = false;
+    };
+  };
+
   users.users.tino = {
     isNormalUser = true;
     extraGroups = [ "networkmanager" "wheel" ];
@@ -245,7 +256,7 @@ After booting the minimal installation, log in as `tino` and clone the repositor
 ```bash
 nix --extra-experimental-features 'nix-command flakes' \
   shell github:NixOS/nixpkgs/nixos-26.05#git --command \
-  git clone https://github.com/OWNER/REPOSITORY.git ~/nix-config
+  git clone https://github.com/codingtino/nix.git ~/nix-config
 
 cd ~/nix-config
 ```
@@ -295,6 +306,7 @@ Check networking and the display-manager service before making it the boot defau
 
 ```bash
 systemctl status NetworkManager
+systemctl status sshd
 systemctl status display-manager
 ```
 
@@ -306,6 +318,8 @@ reboot
 ```
 
 SDDM should offer and default to the `mango` session. DMS is bound to `mango-session.target`, so it should start only with MangoWC.
+
+OpenSSH remains available after activation. Find the current address with `ip -br address` and connect as the normal user with `ssh tino@ADDRESS`. Root SSH login is disabled. Password authentication is enabled for bootstrap; after installing an SSH public key, set `services.openssh.settings.PasswordAuthentication = false` in `modules/networking.nix`.
 
 ## Routine operation
 
