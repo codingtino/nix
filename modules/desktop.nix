@@ -1,56 +1,64 @@
 { ... }:
 {
-  dendritic.nixos.NIXOS = { userName, ... }: {
-    programs = {
-      mangowc.enable = true;
-      # The native DankGreeter module currently uses Niri to host the login UI;
-      # MangoWC remains the default user session.
-      niri.enable = true;
+  dendritic.nixos.NIXOS =
+    {
+      config,
+      lib,
+      userName,
+      ...
+    }:
+    {
+      programs = {
+        mangowc.enable = true;
+        # The native DankGreeter module currently requires Niri to host the
+        # login UI. It is excluded from the selectable user sessions below.
+        niri.enable = true;
 
-      dms-shell = {
-        enable = true;
-        systemd = {
+        dms-shell = {
           enable = true;
-          target = "mango-session.target";
-          restartIfChanged = true;
+          systemd = {
+            enable = true;
+            target = "mango-session.target";
+            restartIfChanged = true;
+          };
+          enableSystemMonitoring = true;
+          enableVPN = false;
+          enableDynamicTheming = true;
+          enableAudioWavelength = false;
+          enableCalendarEvents = false;
+          enableClipboardPaste = true;
         };
-        enableSystemMonitoring = true;
-        enableVPN = false;
-        enableDynamicTheming = true;
-        enableAudioWavelength = false;
-        enableCalendarEvents = false;
-        enableClipboardPaste = true;
       };
-    };
 
-    services.displayManager = {
-      defaultSession = "mango";
-      dms-greeter = {
+      services.displayManager = {
+        defaultSession = "mango";
+        sessionPackages = lib.mkForce [ config.programs.mangowc.package ];
+        dms-greeter = {
+          enable = true;
+          compositor.name = "niri";
+          configHome = "/home/${userName}";
+        };
+      };
+
+      services.pipewire = {
         enable = true;
-        compositor.name = "niri";
-        configHome = "/home/${userName}";
+        alsa.enable = true;
+        alsa.support32Bit = true;
+        pulse.enable = true;
+      };
+
+      hardware.bluetooth.enable = true;
+      security = {
+        polkit.enable = true;
+        rtkit.enable = true;
+      };
+
+      systemd.user.targets.mango-session = {
+        description = "MangoWC graphical session";
+        requires = [ "graphical-session.target" ];
+        after = [ "graphical-session.target" ];
       };
     };
-
-    services.pipewire = {
-      enable = true;
-      alsa.enable = true;
-      alsa.support32Bit = true;
-      pulse.enable = true;
-    };
-
-    hardware.bluetooth.enable = true;
-    security = {
-      polkit.enable = true;
-      rtkit.enable = true;
-    };
-
-    systemd.user.targets.mango-session = {
-      description = "MangoWC graphical session";
-      requires = [ "graphical-session.target" ];
-      after = [ "graphical-session.target" ];
-    };
-  };
 
   dendritic.home.default = { lib, pkgs, ... }:
     lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
