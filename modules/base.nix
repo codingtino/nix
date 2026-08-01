@@ -25,6 +25,12 @@
     environment.systemPackages = [ pkgs.bashInteractive ];
 
     users.users.root.hashedPassword = "!";
+    system.activationScripts.lockRootPassword = {
+      deps = [ "users" ];
+      text = ''
+        ${pkgs.shadow}/bin/passwd --lock root
+      '';
+    };
 
     users.users.tino = {
       isNormalUser = true;
