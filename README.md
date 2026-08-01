@@ -195,9 +195,33 @@ herdr --version
 brew bundle check
 ```
 
-## Minimal NixOS installation on the ThinkPad L14
+## Unattended NixOS installation on the ThinkPad L14
 
-The intended workflow is deliberately two-stage: first create a bootable minimal NixOS system and its real hardware scan, then apply this repository.
+[`install-l14.sh`](./install-l14.sh) performs the complete installation from the NixOS 26.05 minimal ISO without prompts. It deliberately erases every partition on `/dev/nvme0n1`, creates a 1 GiB UEFI partition, creates unencrypted swap sized to RAM plus 4 GiB for hibernation, uses the remainder for ext4, generates the machine hardware file, clones this repository, creates `flake.lock` if needed, installs `.#NIXOS`, and reboots.
+
+The script refuses to run unless it is root, the ISO was booted in UEFI mode, DMI identifies a Lenovo ThinkPad L14 Gen 1/type 20U1 or 20U2, and `/dev/nvme0n1` exists as a non-removable disk. These checks reduce accidental misuse but do not make a remote destructive script safe for other hardware.
+
+After connecting the installer to the network, the requested direct command is:
+
+```bash
+curl --proto '=https' --tlsv1.2 -fsSL \
+  https://raw.githubusercontent.com/codingtino/nix/main/install-l14.sh | bash
+```
+
+Piping the mutable `main` branch into a root shell trusts the current GitHub account and repository contents. The safer workflow is to download and inspect it first:
+
+```bash
+curl --proto '=https' --tlsv1.2 -fLo /tmp/install-l14.sh \
+  https://raw.githubusercontent.com/codingtino/nix/main/install-l14.sh
+less /tmp/install-l14.sh
+bash /tmp/install-l14.sh
+```
+
+The installed user is `tino` with the intentionally weak, publicly known test password `asdasd`. Change it immediately with `passwd`. The root password is locked, root SSH login is disabled, and administrative access remains available to `tino` through `sudo`. The generated hardware file and lock file are staged in `~/nix-config`; review and commit them after the first successful boot.
+
+## Manual NixOS installation on the ThinkPad L14
+
+The manual workflow is deliberately two-stage: first create a bootable minimal NixOS system and its real hardware scan, then apply this repository.
 
 ### 1. Boot the stable minimal installer in UEFI mode
 

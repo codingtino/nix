@@ -24,6 +24,8 @@
     programs.zsh.enable = true;
     environment.systemPackages = [ pkgs.bashInteractive ];
 
+    users.users.root.hashedPassword = "!";
+
     users.users.tino = {
       isNormalUser = true;
       description = "Tino";
