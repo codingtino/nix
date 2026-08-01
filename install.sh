@@ -382,7 +382,7 @@ prompt_storage_choices() {
   swap_help='Swap protects against memory exhaustion. It can use compressed RAM through zram, persistent disk space, or both.\nHibernation automatically requires persistent disk swap; zram alone cannot store a hibernation image.'
   disk_swap_help='Dedicated disk swap provides persistent swap capacity but consumes fixed disk space and causes writes.\nHibernation requires disk swap at least as large as RAM; a partition or encrypted LV is the most reliable design.'
   zram_help='zram provides fast compressed swap in RAM and reduces SSD writes. It cannot store a hibernation image.\nIt can be used alone for normal swapping or together with lower-priority disk swap.'
-  hibernation_help='Hibernation writes memory to disk and powers off. It requires disk swap with sufficient capacity.\nIf encryption is disabled, the hibernated memory image is readable from the disk.'
+  hibernation_help='Hibernation writes memory to disk and powers off. It requires persistent disk swap with sufficient capacity.\nThis installer disables zram in hibernation mode for a simple, deterministic swap layout.\nIf encryption is disabled, the hibernated memory image is readable from the disk.'
 
   ask_yes_no_help "Encrypt the NixOS system?" "yes" "$encryption_help"
   ENABLE_ENCRYPTION=$ANSWER_BOOL
@@ -394,9 +394,7 @@ prompt_storage_choices() {
   ENABLE_ZRAM=false
   if [[ $ENABLE_HIBERNATION == true ]]; then
     ENABLE_DISK_SWAP=true
-    printf 'Swap is enabled with dedicated disk backing because hibernation requires it.\n' >"$TTY_DEVICE"
-    ask_yes_no_help "Also enable compressed zram swap?" "yes" "$zram_help"
-    ENABLE_ZRAM=$ANSWER_BOOL
+    printf 'Dedicated disk swap is enabled; zram is disabled for the hibernation layout.\n' >"$TTY_DEVICE"
   else
     while true; do
       ask_yes_no_help "Enable swap?" "yes" "$swap_help"

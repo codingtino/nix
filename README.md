@@ -48,9 +48,9 @@ The installer asks for:
 - nixos-hardware profile
 - target disk from the writable disks reported by `lsblk`
 - disk encryption
-- hibernation; enabling it automatically enables dedicated disk swap
+- hibernation; enabling it automatically enables dedicated disk swap and disables zram
 - whether to enable swap at all when hibernation is disabled
-- dedicated disk swap and compressed zram choices only when swap is enabled
+- dedicated disk swap and compressed zram choices only when hibernation is disabled and swap is enabled
 - an encryption passphrase when encryption is selected
 - explicit consent for proprietary/insecure Broadcom STA Wi-Fi when matching hardware is detected
 - exact final destructive confirmation
@@ -91,7 +91,7 @@ GPT
 
 The encrypted layout needs one LUKS unlock during boot and keeps both root data and hibernated memory encrypted. The installer recommends a separate disk passphrase but allows explicitly reusing the login password.
 
-The installer asks about hibernation first. Enabling it automatically enables disk swap and enforces at least RAM plus 4 GiB; compressed zram is then offered only as an additional swap tier. Without hibernation, the installer first asks whether to enable swap at all and only then offers disk swap, zram, or both. Without disk encryption, a hibernation image is not confidential.
+The installer asks about hibernation first. Enabling it automatically enables disk swap, disables zram, and enforces at least RAM plus 4 GiB. Without hibernation, the installer first asks whether to enable swap at all and only then offers disk swap, zram, or both. Without disk encryption, a hibernation image is not confidential.
 
 ### Hardware discovery and nixos-hardware
 
