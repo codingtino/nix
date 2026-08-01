@@ -54,6 +54,7 @@ Small active examples for Dock and Finder are in `modules/macos-defaults.nix`.
 
 - ThinkPad L14 Intel profile from `nixos-hardware`
 - UEFI systemd-boot
+- Swap-partition-backed hibernation
 - NetworkManager and DHCP
 - OpenSSH with root login disabled and password login enabled for initial setup
 - SDDM with its Wayland greeter
@@ -207,6 +208,8 @@ Download the NixOS 26.05 minimal ISO from <https://nixos.org/download/>. In the 
 - keep storage controller mode compatible with Linux (normally AHCI)
 
 Follow the official manual for partitioning because disk names and desired data layout must not be guessed here: <https://nixos.org/manual/nixos/stable/#sec-installation-manual>.
+
+Hibernation expects a swap partition at least as large as RAM with the filesystem label `swap` (create it with `mkswap -L swap DEVICE`). The configuration resumes from `/dev/disk/by-label/swap`. Because this setup does not encrypt swap, hibernated memory contents are stored unencrypted on disk.
 
 Mount the root filesystem at `/mnt` and the EFI System Partition at `/mnt/boot`, then generate configuration:
 
