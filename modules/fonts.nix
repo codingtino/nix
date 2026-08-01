@@ -8,7 +8,7 @@
     fonts.packages = [ pkgs.nerd-fonts.jetbrains-mono ];
   };
 
-  dendritic.home.tino = { pkgs, ... }: {
+  dendritic.home.default = { pkgs, ... }: {
     fonts.fontconfig.enable = pkgs.stdenv.hostPlatform.isLinux;
   };
 }

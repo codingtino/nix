@@ -1,6 +1,6 @@
 { ... }:
 {
-  dendritic.home.tino = {
+  dendritic.home.default = {
     programs.helix = {
       enable = true;
       defaultEditor = true;

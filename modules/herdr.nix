@@ -1,4 +1,4 @@
-{ ... }:
+{ lib, ... }:
 let
   version = "0.7.5";
 
@@ -44,16 +44,18 @@ let
     };
 in
 {
-  perSystem = { pkgs, ... }: {
-    packages.herdr = mkHerdr pkgs;
-  };
+  perSystem = { pkgs, ... }:
+    lib.mkIf (builtins.hasAttr pkgs.stdenv.hostPlatform.system sources) {
+      packages.herdr = mkHerdr pkgs;
+    };
 
-  dendritic.home.tino = { pkgs, ... }: {
-    home.packages = [ (mkHerdr pkgs) ];
+  dendritic.home.default = { pkgs, ... }:
+    lib.mkIf (builtins.hasAttr pkgs.stdenv.hostPlatform.system sources) {
+      home.packages = [ (mkHerdr pkgs) ];
 
-    xdg.configFile."herdr/config.toml".text = ''
-      # Herdr works with its built-in defaults.
-      # Add personal settings here when migrating the existing configuration.
-    '';
-  };
+      xdg.configFile."herdr/config.toml".text = ''
+        # Herdr works with its built-in defaults.
+        # Add personal settings here when migrating the existing configuration.
+      '';
+    };
 }

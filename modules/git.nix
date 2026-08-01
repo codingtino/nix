@@ -1,6 +1,6 @@
 { ... }:
 {
-  dendritic.home.tino = {
+  dendritic.home.default = {
     programs.git = {
       enable = true;
       settings = {

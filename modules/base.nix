@@ -1,95 +1,125 @@
 { ... }:
 {
-  dendritic.nixos.NIXOS = { lib, pkgs, ... }: {
-    networking.hostName = "NIXOS";
-    nixpkgs.hostPlatform = "x86_64-linux";
-    system.stateVersion = "26.05";
+  dendritic.nixos.NIXOS =
+    {
+      enableBroadcomSta,
+      hostName,
+      lib,
+      pkgs,
+      userName,
+      ...
+    }:
+    {
+      networking.hostName = hostName;
+      nixpkgs.hostPlatform = "x86_64-linux";
+      system.stateVersion = "26.05";
 
-    boot.loader = {
-      systemd-boot.enable = true;
-      efi.canTouchEfiVariables = true;
-    };
+      boot.loader = {
+        systemd-boot.enable = true;
+        efi.canTouchEfiVariables = true;
+      };
 
-    nix = {
-      package = pkgs.nix;
-      settings = {
-        experimental-features = [ "nix-command" "flakes" ];
-        auto-optimise-store = true;
+      nix = {
+        package = pkgs.nix;
+        settings = {
+          experimental-features = [
+            "nix-command"
+            "flakes"
+          ];
+          auto-optimise-store = true;
+        };
+      };
+
+      nixpkgs.config = {
+        allowUnfreePredicate = pkg:
+          builtins.elem (lib.getName pkg) (
+            [ "terraform" ] ++ lib.optional enableBroadcomSta "broadcom-sta"
+          );
+        allowInsecurePredicate = pkg:
+          enableBroadcomSta && lib.getName pkg == "broadcom-sta";
+      };
+
+      programs.zsh.enable = true;
+      environment.systemPackages = [ pkgs.bashInteractive ];
+
+      users.users.root.hashedPassword = "!";
+      system.activationScripts.lockRootPassword = {
+        deps = [ "users" ];
+        text = ''
+          ${pkgs.shadow}/bin/passwd --lock root
+        '';
+      };
+
+      users.users.${userName} = {
+        isNormalUser = true;
+        description = userName;
+        shell = pkgs.zsh;
+        extraGroups = [
+          "input"
+          "networkmanager"
+          "video"
+          "wheel"
+        ];
       };
     };
 
-    nixpkgs.config.allowUnfreePredicate = pkg:
-      builtins.elem (lib.getName pkg) [ "terraform" ];
+  dendritic.darwin."MACOS-NIX" =
+    {
+      lib,
+      pkgs,
+      userName,
+      ...
+    }:
+    {
+      nixpkgs.config.allowUnfreePredicate = pkg:
+        builtins.elem (lib.getName pkg) [ "terraform" ];
 
-    programs.zsh.enable = true;
-    environment.systemPackages = [ pkgs.bashInteractive ];
+      system = {
+        primaryUser = userName;
+        stateVersion = 6;
+      };
 
-    users.users.root.hashedPassword = "!";
-    system.activationScripts.lockRootPassword = {
-      deps = [ "users" ];
-      text = ''
-        ${pkgs.shadow}/bin/passwd --lock root
-      '';
-    };
+      nix = {
+        enable = true;
+        package = pkgs.nix;
+        settings = {
+          experimental-features = [
+            "nix-command"
+            "flakes"
+          ];
+          auto-optimise-store = true;
+        };
+      };
 
-    users.users.tino = {
-      isNormalUser = true;
-      description = "Tino";
-      shell = pkgs.zsh;
-      extraGroups = [
-        "input"
-        "networkmanager"
-        "video"
-        "wheel"
-      ];
-    };
-  };
+      programs.zsh.enable = true;
+      environment = {
+        shells = [
+          pkgs.zsh
+          pkgs.bashInteractive
+        ];
+        systemPackages = [ pkgs.bashInteractive ];
+      };
 
-  dendritic.darwin."MACOS-NIX" = { lib, pkgs, ... }: {
-    networking = {
-      hostName = "MACOS-NIX";
-      localHostName = "MACOS-NIX";
-      computerName = "MACOS-NIX";
-    };
-
-    nixpkgs.hostPlatform = "aarch64-darwin";
-    nixpkgs.config.allowUnfreePredicate = pkg:
-      builtins.elem (lib.getName pkg) [ "terraform" ];
-
-    system = {
-      primaryUser = "tino";
-      stateVersion = 6;
-    };
-
-    nix = {
-      enable = true;
-      package = pkgs.nix;
-      settings = {
-        experimental-features = [ "nix-command" "flakes" ];
-        auto-optimise-store = true;
+      users.users.${userName} = {
+        home = "/Users/${userName}";
+        shell = pkgs.zsh;
       };
     };
 
-    programs.zsh.enable = true;
-    environment = {
-      shells = [ pkgs.zsh pkgs.bashInteractive ];
-      systemPackages = [ pkgs.bashInteractive ];
-    };
+  dendritic.home.default =
+    {
+      pkgs,
+      userName,
+      ...
+    }:
+    {
+      home = {
+        username = userName;
+        homeDirectory = if pkgs.stdenv.hostPlatform.isDarwin then "/Users/${userName}" else "/home/${userName}";
+        stateVersion = "26.05";
+      };
 
-    users.users.tino = {
-      home = "/Users/tino";
-      shell = pkgs.zsh;
+      xdg.enable = true;
+      programs.home-manager.enable = true;
     };
-  };
-
-  dendritic.home.tino = { pkgs, ... }: {
-    home = {
-      username = "tino";
-      homeDirectory = if pkgs.stdenv.hostPlatform.isDarwin then "/Users/tino" else "/home/tino";
-      stateVersion = "26.05";
-    };
-
-    xdg.enable = true;
-    programs.home-manager.enable = true;
-  };
 }

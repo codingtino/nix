@@ -1,6 +1,6 @@
 { ... }:
 {
-  dendritic.home.tino = { config, pkgs, ... }: {
+  dendritic.home.default = { config, pkgs, ... }: {
     home.packages = [ pkgs.bashInteractive ];
 
     programs = {

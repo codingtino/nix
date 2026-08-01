@@ -48,7 +48,7 @@
     };
   };
 
-  dendritic.home.tino = { lib, pkgs, ... }:
+  dendritic.home.default = { lib, pkgs, ... }:
     lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
       xdg.configFile."mango/config.conf".text = ''
         # Environment

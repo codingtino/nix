@@ -1,6 +1,6 @@
 { ... }:
 {
-  dendritic.home.tino = { pkgs, ... }: {
+  dendritic.home.default = { pkgs, ... }: {
     programs.ghostty = {
       enable = true;
       package = if pkgs.stdenv.hostPlatform.isDarwin then null else pkgs.ghostty;

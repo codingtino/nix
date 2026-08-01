@@ -1,6 +1,6 @@
 { ... }:
 {
-  dendritic.home.tino = { pkgs, ... }: {
+  dendritic.home.default = { pkgs, ... }: {
     home.packages = with pkgs; [
       curl
       rsync

@@ -1,9 +1,9 @@
 { ... }:
 {
-  dendritic.darwin."MACOS-NIX" = {
+  dendritic.darwin."MACOS-NIX" = { lib, pkgs, userName, ... }: {
     nix-homebrew = {
       enable = true;
-      user = "tino";
+      user = userName;
       enableRosetta = false;
       autoMigrate = true;
       mutableTaps = true;
@@ -11,7 +11,7 @@
 
     homebrew = {
       enable = true;
-      brews = [ "macmon" ];
+      brews = lib.optional pkgs.stdenv.hostPlatform.isAarch64 "macmon";
       casks = [
         "ghostty"
         "hiddenbar"
