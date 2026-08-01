@@ -1,6 +1,6 @@
 # NIXOS hardware file
 
-`hardware-configuration.nix` is intentionally a guard placeholder. After the minimal NixOS installation on the ThinkPad T480, overwrite it with:
+`hardware-configuration.nix` is intentionally a guard placeholder. After the minimal NixOS installation on the ThinkPad L14 Gen 1 Intel (20U1/20U2), overwrite it with:
 
 ```bash
 sudo cp /etc/nixos/hardware-configuration.nix ./hosts/NIXOS/hardware-configuration.nix

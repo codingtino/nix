@@ -5,7 +5,7 @@ One flake-based, dendritic repository for:
 | Host | Platform | Purpose |
 |---|---|---|
 | `MACOS-NIX` | Apple Silicon / `aarch64-darwin`, macOS 26.6 | nix-darwin + Home Manager + Homebrew GUI apps |
-| `NIXOS` | Lenovo ThinkPad T480 / `x86_64-linux`, UEFI | NixOS + SDDM + MangoWC + DankMaterialShell |
+| `NIXOS` | Lenovo ThinkPad L14 Gen 1 Intel (20U1/20U2) / `x86_64-linux`, UEFI | NixOS + SDDM + MangoWC + DankMaterialShell |
 
 The user is `tino` on both systems. NixOS uses `Europe/Berlin`, `de_DE.UTF-8`, a German keyboard, and DHCP.
 
@@ -52,7 +52,7 @@ Small active examples for Dock and Finder are in `modules/macos-defaults.nix`.
 
 ### NixOS only
 
-- ThinkPad T480 profile from `nixos-hardware`
+- ThinkPad L14 Intel profile from `nixos-hardware`
 - UEFI systemd-boot
 - NetworkManager and DHCP
 - SDDM with its Wayland greeter
@@ -102,7 +102,7 @@ The central typed collections are declared in `modules/dendritic.nix`; `modules/
 │   ├── dendritic.nix       # deferred-module collection types
 │   ├── outputs.nix         # host outputs
 │   ├── base.nix            # host/user fundamentals
-│   ├── hardware.nix        # T480 profile + generated hardware import
+│   ├── hardware.nix        # L14 Intel profile + generated hardware import
 │   ├── desktop.nix         # SDDM + MangoWC + DMS
 │   ├── macos-apps.nix      # nix-homebrew + formulae/casks
 │   ├── macos-defaults.nix  # Dock/Finder examples
@@ -193,13 +193,13 @@ herdr --version
 brew bundle check
 ```
 
-## Minimal NixOS installation on the T480
+## Minimal NixOS installation on the ThinkPad L14
 
 The intended workflow is deliberately two-stage: first create a bootable minimal NixOS system and its real hardware scan, then apply this repository.
 
 ### 1. Boot the stable minimal installer in UEFI mode
 
-Download the NixOS 26.05 minimal ISO from <https://nixos.org/download/>. In the T480 firmware:
+Download the NixOS 26.05 minimal ISO from <https://nixos.org/download/>. In the L14 firmware:
 
 - boot the USB entry marked UEFI
 - disable Secure Boot for this initial setup unless you separately configure a signed-boot solution
@@ -269,7 +269,7 @@ git diff --cached -- hosts/NIXOS/hardware-configuration.nix
 Commit and push it once verified:
 
 ```bash
-git commit -m 'Add NIXOS T480 hardware configuration'
+git commit -m 'Add NIXOS L14 hardware configuration'
 git push
 ```
 
@@ -446,7 +446,7 @@ Nix can pin package and module sources, but not all state on these systems:
 - Mac App Store installation depends on an Apple ID and mutable store availability.
 - DMS preferences changed through its UI are runtime user state unless later translated into managed files/options.
 - Passwords, SSH keys, tokens, and other secrets are intentionally not managed yet.
-- The generated T480 hardware file is machine-specific and must not be copied to unrelated hardware.
+- The generated L14 hardware file is machine-specific and must not be copied to another machine, including another L14, because storage UUIDs and devices can differ.
 
 ## Research
 
