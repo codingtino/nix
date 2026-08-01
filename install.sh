@@ -387,15 +387,19 @@ prompt_storage_choices() {
   ask_yes_no_help "Enable compressed zram swap?" "yes" "$zram_help"
   ENABLE_ZRAM=$ANSWER_BOOL
 
-  ask_yes_no_help "Create dedicated disk swap?" "yes" "$swap_help"
-  ENABLE_DISK_SWAP=$ANSWER_BOOL
+  ask_yes_no_help "Enable hibernation?" "yes" "$hibernation_help"
+  ENABLE_HIBERNATION=$ANSWER_BOOL
 
-  ENABLE_HIBERNATION=false
+  if [[ $ENABLE_HIBERNATION == true ]]; then
+    ENABLE_DISK_SWAP=true
+    printf 'Dedicated disk swap will be created because hibernation requires it.\n' >"$TTY_DEVICE"
+  else
+    ask_yes_no_help "Create dedicated disk swap?" "yes" "$swap_help"
+    ENABLE_DISK_SWAP=$ANSWER_BOOL
+  fi
+
   SWAP_GIB=0
   if [[ $ENABLE_DISK_SWAP == true ]]; then
-    ask_yes_no_help "Enable hibernation?" "yes" "$hibernation_help"
-    ENABLE_HIBERNATION=$ANSWER_BOOL
-
     minimum_swap=1
     recommended_swap=$RAM_GIB
     if [[ $ENABLE_HIBERNATION == true ]]; then
