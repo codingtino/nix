@@ -1,18 +1,213 @@
 #!/usr/bin/env bash
 # Cross-platform bootstrap for codingtino/nix.
-# - NixOS minimal ISO: interactive, destructive Btrfs installation.
+# - NixOS minimal ISO: interactive or flag-driven destructive Btrfs installation.
 # - macOS: non-destructive official Nix + nix-darwin bootstrap.
 
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-readonly TTY_DEVICE="/dev/tty"
+TTY_DEVICE="/dev/tty"
 readonly REPOSITORY_REF="github:codingtino/nix"
 
 REPLY=""
 SECRET_REPLY=""
+FILE_SECRET=""
 LOGIN_PASSWORD=""
 DISK_PASSWORD=""
+NON_INTERACTIVE=false
+NIXOS_OPTIONS_USED=false
+CLI_USER_NAME=""
+CLI_PASSWORD=""
+CLI_PASSWORD_FILE=""
+CLI_HOST_NAME=""
+CLI_HARDWARE_PROFILE=""
+CLI_DISK=""
+CLI_ENCRYPT=""
+CLI_ENCRYPTION_PASSWORD=""
+CLI_ENCRYPTION_PASSWORD_FILE=""
+CLI_REUSE_LOGIN_PASSWORD=false
+CLI_HIBERNATION=""
+CLI_SWAP=""
+CLI_DISK_SWAP=""
+CLI_ZRAM=""
+CLI_SWAP_GIB=""
+CLI_BROADCOM_STA=""
+CLI_CONFIRM_ERASE=""
+
+show_help() {
+  cat <<'EOF'
+Usage: install.sh [options]
+
+Values supplied as options skip their corresponding prompts. Omitted values stay
+interactive unless --non-interactive is used, in which case missing required values
+cause an error before the selected disk is erased.
+
+General:
+  -h, --help                         Show this help
+  --non-interactive                  Never prompt; fail on missing required values
+  --user NAME                        NixOS username or existing macOS admin user
+
+NixOS identity:
+  --password PASSWORD                Login password in plain text (insecure in argv/history)
+  --password-file PATH               File containing only the login password
+  --hostname NAME                    Installed hostname
+
+NixOS hardware and target:
+  --hardware-profile auto|none|NAME  nixos-hardware profile selection
+  --disk DEVICE                      Exact writable target disk, for example /dev/nvme0n1
+  --broadcom-sta yes|no              Enable proprietary Broadcom STA/WL support
+
+NixOS storage:
+  --encrypt yes|no                   Enable LUKS2 encryption
+  --encryption-password PASSWORD     Separate LUKS passphrase in plain text
+  --encryption-password-file PATH    File containing only the LUKS passphrase
+  --reuse-login-password             Reuse the login password for LUKS
+  --hibernation yes|no               Enable hibernation (forces disk swap, disables zram)
+  --swap yes|no                      Enable any swap when hibernation is disabled
+  --disk-swap yes|no                 Enable persistent disk swap
+  --zram yes|no                      Enable compressed RAM swap
+  --swap-size GIB, --swapsize GIB    Persistent swap size in whole GiB
+
+Destructive authorization:
+  --confirm-erase DEVICE             Skip the final prompt only when DEVICE exactly
+                                     matches the selected disk and any --disk value
+
+Options accept either '--name value' or '--name=value'. Boolean values accept
+'yes/no', 'true/false', '1/0', and 'y/n'. Password options are NixOS-only; macOS
+continues to authenticate securely through sudo.
+EOF
+}
+
+normalize_yes_no() {
+  local option=$1
+  local value
+  value=$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')
+  case "$value" in
+    y | yes | true | 1) BOOL_VALUE=true ;;
+    n | no | false | 0) BOOL_VALUE=false ;;
+    *) die "$option expects yes or no, not: $2" ;;
+  esac
+}
+
+parse_args() {
+  local raw
+  local option
+  local value
+
+  while [[ $# -gt 0 ]]; do
+    raw=$1
+    shift
+    case "$raw" in
+      -h | --help)
+        show_help
+        exit 0
+        ;;
+      --non-interactive)
+        NON_INTERACTIVE=true
+        continue
+        ;;
+      --reuse-login-password)
+        CLI_REUSE_LOGIN_PASSWORD=true
+        NIXOS_OPTIONS_USED=true
+        continue
+        ;;
+    esac
+
+    case "$raw" in
+      --*=*)
+        option=${raw%%=*}
+        value=${raw#*=}
+        ;;
+      *)
+        option=$raw
+        [[ $# -gt 0 ]] || die "$option requires a value."
+        value=$1
+        shift
+        ;;
+    esac
+    [[ -n $value ]] || die "$option requires a non-empty value."
+
+    case "$option" in
+      --user) CLI_USER_NAME=$value ;;
+      --password)
+        CLI_PASSWORD=$value
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --password-file)
+        CLI_PASSWORD_FILE=$value
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --hostname)
+        CLI_HOST_NAME=$value
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --hardware-profile)
+        CLI_HARDWARE_PROFILE=$value
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --disk)
+        CLI_DISK=$value
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --encrypt)
+        normalize_yes_no "$option" "$value"
+        CLI_ENCRYPT=$BOOL_VALUE
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --encryption-password)
+        CLI_ENCRYPTION_PASSWORD=$value
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --encryption-password-file)
+        CLI_ENCRYPTION_PASSWORD_FILE=$value
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --hibernation)
+        normalize_yes_no "$option" "$value"
+        CLI_HIBERNATION=$BOOL_VALUE
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --swap)
+        normalize_yes_no "$option" "$value"
+        CLI_SWAP=$BOOL_VALUE
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --disk-swap)
+        normalize_yes_no "$option" "$value"
+        CLI_DISK_SWAP=$BOOL_VALUE
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --zram)
+        normalize_yes_no "$option" "$value"
+        CLI_ZRAM=$BOOL_VALUE
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --swap-size | --swapsize)
+        CLI_SWAP_GIB=$value
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --broadcom-sta)
+        normalize_yes_no "$option" "$value"
+        CLI_BROADCOM_STA=$BOOL_VALUE
+        NIXOS_OPTIONS_USED=true
+        ;;
+      --confirm-erase)
+        CLI_CONFIRM_ERASE=$value
+        NIXOS_OPTIONS_USED=true
+        ;;
+      *) die "Unknown option: $option. Use --help for supported options." ;;
+    esac
+  done
+
+  [[ -z $CLI_PASSWORD || -z $CLI_PASSWORD_FILE ]] || \
+    die "Use only one of --password and --password-file."
+  [[ -z $CLI_ENCRYPTION_PASSWORD || -z $CLI_ENCRYPTION_PASSWORD_FILE ]] || \
+    die "Use only one encryption-password source."
+  if [[ $CLI_REUSE_LOGIN_PASSWORD == true ]] && \
+    [[ -n $CLI_ENCRYPTION_PASSWORD || -n $CLI_ENCRYPTION_PASSWORD_FILE ]]; then
+    die "--reuse-login-password cannot be combined with a separate encryption password."
+  fi
+}
 
 log() {
   printf '\n==> %s\n' "$*"
@@ -34,6 +229,9 @@ clear_secrets() {
   LOGIN_PASSWORD=""
   DISK_PASSWORD=""
   SECRET_REPLY=""
+  FILE_SECRET=""
+  CLI_PASSWORD=""
+  CLI_ENCRYPTION_PASSWORD=""
 }
 
 trap on_error ERR
@@ -84,6 +282,43 @@ ask_yes_no_help() {
         ;;
     esac
   done
+}
+
+require_interactive_value() {
+  [[ $NON_INTERACTIVE == false ]] || die "$1 is required with --non-interactive."
+}
+
+ask_or_use_bool() {
+  local supplied_value=$1
+  local option=$2
+  local question=$3
+  local default_answer=$4
+  local help_text=$5
+
+  if [[ -n $supplied_value ]]; then
+    ANSWER_BOOL=$supplied_value
+  else
+    require_interactive_value "$option"
+    ask_yes_no_help "$question" "$default_answer" "$help_text"
+  fi
+}
+
+read_secret_file() {
+  local path=$1
+  local label=$2
+
+  [[ -f $path && -r $path ]] || die "$label file is not a readable regular file: $path"
+  FILE_SECRET=$(<"$path")
+  [[ -n $FILE_SECRET ]] || die "$label file is empty: $path"
+  [[ $FILE_SECRET != *$'\n'* ]] || die "$label file must contain exactly one line."
+}
+
+validate_password() {
+  local value=$1
+  local label=$2
+  [[ -n $value ]] || die "$label cannot be empty."
+  [[ $value != *:* ]] || die "$label cannot contain a colon."
+  [[ $value != *$'\n'* && $value != *$'\r'* ]] || die "$label cannot contain a newline."
 }
 
 prompt_confirmed_secret() {
@@ -171,6 +406,8 @@ install_macos() {
   local nix_bin
 
   [[ $EUID -ne 0 ]] || die "Run the macOS path as the admin user, not through sudo. The script invokes sudo when needed."
+  [[ $NON_INTERACTIVE == false ]] || die "--non-interactive is currently supported only by the NixOS installer."
+  [[ $NIXOS_OPTIONS_USED == false ]] || die "NixOS-specific options cannot be used on macOS."
   require_commands curl dscl grep id install mktemp rm scutil sh sudo sw_vers tr uname
 
   current_user=$(id -un)
@@ -179,20 +416,27 @@ install_macos() {
     "$(sw_vers -productVersion)" "$(uname -m)" "$computer_name" >"$TTY_DEVICE"
 
   while true; do
-    prompt "macOS admin username [$current_user]: "
-    admin_user=${REPLY:-$current_user}
-    validate_macos_user_name "$admin_user" || {
+    if [[ -n $CLI_USER_NAME ]]; then
+      admin_user=$CLI_USER_NAME
+    else
+      prompt "macOS admin username [$current_user]: "
+      admin_user=${REPLY:-$current_user}
+    fi
+    if ! validate_macos_user_name "$admin_user"; then
+      [[ -z $CLI_USER_NAME ]] || die "Invalid macOS username supplied through --user: $admin_user"
       printf 'Enter an existing macOS short username using lowercase letters, digits, ., _ or -.\n' >"$TTY_DEVICE"
       continue
-    }
-    dscl . -read "/Users/$admin_user" >/dev/null 2>&1 || {
+    fi
+    if ! dscl . -read "/Users/$admin_user" >/dev/null 2>&1; then
+      [[ -z $CLI_USER_NAME ]] || die "The macOS account supplied through --user does not exist: $admin_user"
       printf 'That macOS account does not exist.\n' >"$TTY_DEVICE"
       continue
-    }
-    printf '%s\n' "$(id -Gn "$admin_user")" | tr ' ' '\n' | grep -Fxq admin || {
+    fi
+    if ! printf '%s\n' "$(id -Gn "$admin_user")" | tr ' ' '\n' | grep -Fxq admin; then
+      [[ -z $CLI_USER_NAME ]] || die "The macOS account supplied through --user is not an administrator: $admin_user"
       printf 'That account is not in the macOS admin group.\n' >"$TTY_DEVICE"
       continue
-    }
+    fi
     [[ $admin_user == "$current_user" ]] || die "Log in as $admin_user and rerun install.sh; sudo authenticates the invoking account."
     break
   done
@@ -274,21 +518,33 @@ select_disk() {
   done < <(lsblk -dpno NAME)
 
   [[ ${#DISKS[@]} -gt 0 ]] || die "No writable disks were found."
-  while true; do
-    prompt "Select the disk number to erase: "
-    selection=$REPLY
-    [[ $selection =~ ^[0-9]+$ ]] || {
-      printf 'Enter one of the displayed numbers.\n' >"$TTY_DEVICE"
-      continue
-    }
-    (( selection >= 1 && selection <= ${#DISKS[@]} )) || {
-      printf 'Selection is out of range.\n' >"$TTY_DEVICE"
-      continue
-    }
-    index=$((selection - 1))
-    SELECTED_DISK=${DISKS[$index]}
-    break
-  done
+  if [[ -n $CLI_DISK ]]; then
+    SELECTED_DISK=""
+    for device in "${DISKS[@]}"; do
+      if [[ $device == "$CLI_DISK" ]]; then
+        SELECTED_DISK=$device
+        break
+      fi
+    done
+    [[ -n $SELECTED_DISK ]] || die "--disk must exactly match one of the displayed writable disks: $CLI_DISK"
+  else
+    require_interactive_value "--disk"
+    while true; do
+      prompt "Select the disk number to erase: "
+      selection=$REPLY
+      [[ $selection =~ ^[0-9]+$ ]] || {
+        printf 'Enter one of the displayed numbers.\n' >"$TTY_DEVICE"
+        continue
+      }
+      (( selection >= 1 && selection <= ${#DISKS[@]} )) || {
+        printf 'Selection is out of range.\n' >"$TTY_DEVICE"
+        continue
+      }
+      index=$((selection - 1))
+      SELECTED_DISK=${DISKS[$index]}
+      break
+    done
+  fi
 
   printf '\nSelected disk and existing layout:\n' >"$TTY_DEVICE"
   lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINTS,MODEL "$SELECTED_DISK" >"$TTY_DEVICE"
@@ -317,6 +573,21 @@ select_hardware_profile() {
     printf 'No conservative nixos-hardware profile mapping is known for this model.\n' >"$TTY_DEVICE"
   fi
 
+  if [[ -n $CLI_HARDWARE_PROFILE ]]; then
+    normalized=$(printf '%s' "$CLI_HARDWARE_PROFILE" | tr '[:upper:]' '[:lower:]')
+    case "$normalized" in
+      auto) SELECTED_HARDWARE_PROFILE=$AUTO_HARDWARE_PROFILE ;;
+      none) SELECTED_HARDWARE_PROFILE="" ;;
+      *)
+        printf '%s\n' "$HARDWARE_PROFILE_NAMES" | grep -Fxq "$CLI_HARDWARE_PROFILE" || \
+          die "Unknown --hardware-profile: $CLI_HARDWARE_PROFILE"
+        SELECTED_HARDWARE_PROFILE=$CLI_HARDWARE_PROFILE
+        ;;
+    esac
+    return
+  fi
+
+  require_interactive_value "--hardware-profile"
   while true; do
     prompt "Hardware profile [auto/none/list/exact-name/help] (auto): "
     choice=${REPLY:-auto}
@@ -348,23 +619,45 @@ select_hardware_profile() {
 }
 
 prompt_linux_identity() {
-  while true; do
-    prompt "Username for the installed system: "
-    USER_NAME=$REPLY
-    validate_linux_user_name "$USER_NAME" && break
-    printf 'Use 1-31 lowercase letters, digits, _ or -, starting with a letter or _. Root is not allowed.\n' >"$TTY_DEVICE"
-  done
+  if [[ -n $CLI_USER_NAME ]]; then
+    USER_NAME=$CLI_USER_NAME
+    validate_linux_user_name "$USER_NAME" || die "Invalid Linux username supplied through --user: $USER_NAME"
+  else
+    require_interactive_value "--user"
+    while true; do
+      prompt "Username for the installed system: "
+      USER_NAME=$REPLY
+      validate_linux_user_name "$USER_NAME" && break
+      printf 'Use 1-31 lowercase letters, digits, _ or -, starting with a letter or _. Root is not allowed.\n' >"$TTY_DEVICE"
+    done
+  fi
 
-  prompt_confirmed_secret "Login password for $USER_NAME"
-  LOGIN_PASSWORD=$CONFIRMED_SECRET
-  CONFIRMED_SECRET=""
+  if [[ -n $CLI_PASSWORD ]]; then
+    LOGIN_PASSWORD=$CLI_PASSWORD
+  elif [[ -n $CLI_PASSWORD_FILE ]]; then
+    read_secret_file "$CLI_PASSWORD_FILE" "Login password"
+    LOGIN_PASSWORD=$FILE_SECRET
+    FILE_SECRET=""
+  else
+    require_interactive_value "--password or --password-file"
+    prompt_confirmed_secret "Login password for $USER_NAME"
+    LOGIN_PASSWORD=$CONFIRMED_SECRET
+    CONFIRMED_SECRET=""
+  fi
+  validate_password "$LOGIN_PASSWORD" "Login password"
 
-  while true; do
-    prompt "Hostname for the installed system: "
-    HOST_NAME=$REPLY
-    validate_host_name "$HOST_NAME" && break
-    printf 'Use 1-63 letters, digits or hyphens; do not start or end with a hyphen.\n' >"$TTY_DEVICE"
-  done
+  if [[ -n $CLI_HOST_NAME ]]; then
+    HOST_NAME=$CLI_HOST_NAME
+    validate_host_name "$HOST_NAME" || die "Invalid hostname supplied through --hostname: $HOST_NAME"
+  else
+    require_interactive_value "--hostname"
+    while true; do
+      prompt "Hostname for the installed system: "
+      HOST_NAME=$REPLY
+      validate_host_name "$HOST_NAME" && break
+      printf 'Use 1-63 letters, digits or hyphens; do not start or end with a hyphen.\n' >"$TTY_DEVICE"
+    done
+  fi
 }
 
 prompt_storage_choices() {
@@ -384,30 +677,35 @@ prompt_storage_choices() {
   zram_help='zram provides fast compressed swap in RAM and reduces SSD writes. It cannot store a hibernation image.\nIt can be used alone for normal swapping or together with lower-priority disk swap.'
   hibernation_help='Hibernation writes memory to disk and powers off. It requires persistent disk swap with sufficient capacity.\nThis installer disables zram in hibernation mode for a simple, deterministic swap layout.\nIf encryption is disabled, the hibernated memory image is readable from the disk.'
 
-  ask_yes_no_help "Encrypt the NixOS system?" "yes" "$encryption_help"
+  ask_or_use_bool "$CLI_ENCRYPT" "--encrypt" "Encrypt the NixOS system?" "yes" "$encryption_help"
   ENABLE_ENCRYPTION=$ANSWER_BOOL
 
-  ask_yes_no_help "Enable hibernation?" "yes" "$hibernation_help"
+  ask_or_use_bool "$CLI_HIBERNATION" "--hibernation" "Enable hibernation?" "yes" "$hibernation_help"
   ENABLE_HIBERNATION=$ANSWER_BOOL
 
   ENABLE_DISK_SWAP=false
   ENABLE_ZRAM=false
   if [[ $ENABLE_HIBERNATION == true ]]; then
+    [[ $CLI_SWAP != false ]] || die "--hibernation yes conflicts with --swap no."
+    [[ $CLI_DISK_SWAP != false ]] || die "--hibernation yes conflicts with --disk-swap no."
+    [[ $CLI_ZRAM != true ]] || die "--hibernation yes conflicts with --zram yes."
     ENABLE_DISK_SWAP=true
     printf 'Dedicated disk swap is enabled; zram is disabled for the hibernation layout.\n' >"$TTY_DEVICE"
   else
-    while true; do
-      ask_yes_no_help "Enable swap?" "yes" "$swap_help"
-      enable_swap=$ANSWER_BOOL
-      [[ $enable_swap == true ]] || break
-
-      ask_yes_no_help "Create dedicated disk swap?" "yes" "$disk_swap_help"
+    ask_or_use_bool "$CLI_SWAP" "--swap" "Enable swap?" "yes" "$swap_help"
+    enable_swap=$ANSWER_BOOL
+    if [[ $enable_swap == true ]]; then
+      ask_or_use_bool "$CLI_DISK_SWAP" "--disk-swap" "Create dedicated disk swap?" "yes" "$disk_swap_help"
       ENABLE_DISK_SWAP=$ANSWER_BOOL
-      ask_yes_no_help "Also enable compressed zram swap?" "yes" "$zram_help"
+      ask_or_use_bool "$CLI_ZRAM" "--zram" "Also enable compressed zram swap?" "yes" "$zram_help"
       ENABLE_ZRAM=$ANSWER_BOOL
-      [[ $ENABLE_DISK_SWAP == true || $ENABLE_ZRAM == true ]] && break
-      printf 'Select at least one swap type, or disable swap.\n' >"$TTY_DEVICE"
-    done
+      [[ $ENABLE_DISK_SWAP == true || $ENABLE_ZRAM == true ]] || \
+        die "--swap yes requires --disk-swap yes, --zram yes, or an interactive selection."
+    else
+      [[ $CLI_DISK_SWAP != true ]] || die "--swap no conflicts with --disk-swap yes."
+      [[ $CLI_ZRAM != true ]] || die "--swap no conflicts with --zram yes."
+      [[ -z $CLI_SWAP_GIB ]] || die "--swap-size cannot be used when swap is disabled."
+    fi
   fi
 
   SWAP_GIB=0
@@ -419,44 +717,71 @@ prompt_storage_choices() {
       recommended_swap=$minimum_swap
     fi
 
-    while true; do
-      prompt "Disk swap size in GiB [$recommended_swap]: "
-      answer=${REPLY:-$recommended_swap}
-      [[ $answer =~ ^[0-9]+$ ]] || {
-        printf 'Enter a whole number of GiB.\n' >"$TTY_DEVICE"
-        continue
-      }
-      (( answer >= minimum_swap )) || {
-        printf 'At least %s GiB is required for the selected options.\n' "$minimum_swap" >"$TTY_DEVICE"
-        continue
-      }
+    if [[ -n $CLI_SWAP_GIB ]]; then
+      answer=$CLI_SWAP_GIB
+      [[ $answer =~ ^[0-9]+$ ]] || die "--swap-size must be a whole number of GiB."
+      (( answer >= minimum_swap )) || \
+        die "--swap-size must be at least ${minimum_swap} GiB for the selected options."
       SWAP_GIB=$answer
-      break
-    done
+    else
+      require_interactive_value "--swap-size"
+      while true; do
+        prompt "Disk swap size in GiB [$recommended_swap]: "
+        answer=${REPLY:-$recommended_swap}
+        [[ $answer =~ ^[0-9]+$ ]] || {
+          printf 'Enter a whole number of GiB.\n' >"$TTY_DEVICE"
+          continue
+        }
+        (( answer >= minimum_swap )) || {
+          printf 'At least %s GiB is required for the selected options.\n' "$minimum_swap" >"$TTY_DEVICE"
+          continue
+        }
+        SWAP_GIB=$answer
+        break
+      done
+    fi
+  elif [[ -n $CLI_SWAP_GIB ]]; then
+    die "--swap-size requires persistent disk swap."
   fi
 
   DISK_PASSWORD=""
   if [[ $ENABLE_ENCRYPTION == true ]]; then
-    while true; do
-      prompt "Encryption passphrase [separate/reuse/help] (separate): "
-      answer=${REPLY:-separate}
-      case "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" in
-        separate)
-          prompt_confirmed_secret "Disk-encryption passphrase"
-          DISK_PASSWORD=$CONFIRMED_SECRET
-          CONFIRMED_SECRET=""
-          break
-          ;;
-        reuse)
-          DISK_PASSWORD=$LOGIN_PASSWORD
-          break
-          ;;
-        help | h | \?)
-          printf '\nA separate passphrase limits credential reuse and is recommended. Reuse is easier,\nbut one compromised password then unlocks both disk and account. Changing the login\npassword later does not change the LUKS passphrase.\n\n' >"$TTY_DEVICE"
-          ;;
-        *) printf 'Enter separate, reuse, or help.\n' >"$TTY_DEVICE" ;;
-      esac
-    done
+    if [[ $CLI_REUSE_LOGIN_PASSWORD == true ]]; then
+      DISK_PASSWORD=$LOGIN_PASSWORD
+    elif [[ -n $CLI_ENCRYPTION_PASSWORD ]]; then
+      DISK_PASSWORD=$CLI_ENCRYPTION_PASSWORD
+    elif [[ -n $CLI_ENCRYPTION_PASSWORD_FILE ]]; then
+      read_secret_file "$CLI_ENCRYPTION_PASSWORD_FILE" "Encryption password"
+      DISK_PASSWORD=$FILE_SECRET
+      FILE_SECRET=""
+    else
+      require_interactive_value "--encryption-password, --encryption-password-file, or --reuse-login-password"
+      while true; do
+        prompt "Encryption passphrase [separate/reuse/help] (separate): "
+        answer=${REPLY:-separate}
+        case "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" in
+          separate)
+            prompt_confirmed_secret "Disk-encryption passphrase"
+            DISK_PASSWORD=$CONFIRMED_SECRET
+            CONFIRMED_SECRET=""
+            break
+            ;;
+          reuse)
+            DISK_PASSWORD=$LOGIN_PASSWORD
+            break
+            ;;
+          help | h | \?)
+            printf '\nA separate passphrase limits credential reuse and is recommended. Reuse is easier,\nbut one compromised password then unlocks both disk and account. Changing the login\npassword later does not change the LUKS passphrase.\n\n' >"$TTY_DEVICE"
+            ;;
+          *) printf 'Enter separate, reuse, or help.\n' >"$TTY_DEVICE" ;;
+        esac
+      done
+    fi
+    [[ -n $DISK_PASSWORD ]] || die "Encryption password cannot be empty."
+    [[ $DISK_PASSWORD != *$'\n'* && $DISK_PASSWORD != *$'\r'* ]] || \
+      die "Encryption password cannot contain a newline."
+  elif [[ -n $CLI_ENCRYPTION_PASSWORD || -n $CLI_ENCRYPTION_PASSWORD_FILE || $CLI_REUSE_LOGIN_PASSWORD == true ]]; then
+    die "Encryption password options require --encrypt yes."
   fi
 }
 
@@ -477,7 +802,10 @@ configure_broadcom() {
     fi
   done
 
-  if [[ $broadcom_network == true ]]; then
+  if [[ -n $CLI_BROADCOM_STA ]]; then
+    ENABLE_BROADCOM_STA=$CLI_BROADCOM_STA
+  elif [[ $broadcom_network == true ]]; then
+    require_interactive_value "--broadcom-sta"
     ask_yes_no_help "Broadcom Wi-Fi detected. Enable proprietary broadcom_sta/wl?" "yes" \
       'The BCM4360 commonly needs the proprietary wl driver. nixpkgs may mark broadcom_sta insecure.\nAccepting permits only this unfree/insecure package and blacklists conflicting open drivers.\nDeclining may leave Wi-Fi unavailable; wired Ethernet remains unaffected.'
     ENABLE_BROADCOM_STA=$ANSWER_BOOL
@@ -599,9 +927,15 @@ install_nixos() {
   printf '  zram:             %s\n' "$ENABLE_ZRAM" >"$TTY_DEVICE"
   printf '  hibernation:      %s\n' "$ENABLE_HIBERNATION" >"$TTY_DEVICE"
   printf '\nEVERY PARTITION ON %s WILL BE DESTROYED.\n' "$SELECTED_DISK" >"$TTY_DEVICE"
-  prompt "Type exactly 'ERASE $SELECTED_DISK' to continue: "
-  confirmation=$REPLY
-  [[ $confirmation == "ERASE $SELECTED_DISK" ]] || die "Destructive confirmation did not match; nothing was changed."
+  if [[ -n $CLI_CONFIRM_ERASE ]]; then
+    [[ $CLI_CONFIRM_ERASE == "$SELECTED_DISK" ]] || \
+      die "--confirm-erase must exactly match the selected disk: $SELECTED_DISK"
+  else
+    require_interactive_value "--confirm-erase $SELECTED_DISK"
+    prompt "Type exactly 'ERASE $SELECTED_DISK' to continue: "
+    confirmation=$REPLY
+    [[ $confirmation == "ERASE $SELECTED_DISK" ]] || die "Destructive confirmation did not match; nothing was changed."
+  fi
 
   log "Erasing $SELECTED_DISK"
   swapoff -a || true
@@ -688,7 +1022,12 @@ install_nixos() {
 }
 
 main() {
-  [[ -c $TTY_DEVICE ]] || die "$TTY_DEVICE is required for interactive installation."
+  parse_args "$@"
+  if [[ $NON_INTERACTIVE == true ]]; then
+    TTY_DEVICE="/dev/stderr"
+  else
+    [[ -c $TTY_DEVICE ]] || die "$TTY_DEVICE is required for interactive installation."
+  fi
   case "$(uname -s)" in
     Darwin) install_macos ;;
     Linux) install_nixos ;;

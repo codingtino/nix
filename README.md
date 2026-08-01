@@ -1,6 +1,6 @@
 # tino's reusable macOS and NixOS configuration
 
-One flake-based, dendritic configuration with a single interactive bootstrap script:
+One flake-based, dendritic configuration with a single interactive or flag-driven bootstrap script:
 
 - **NixOS:** installs the same system and Home Manager configuration on supported x86-64 machines while keeping username, hostname, disks, UUIDs, encryption choices, and generated hardware configuration local under `/etc/nixos`.
 - **macOS:** installs official upstream Nix when needed and applies nix-darwin, Home Manager, and Homebrew without changing the existing macOS computer name.
@@ -11,7 +11,7 @@ The currently tested NixOS hardware is:
 - Apple MacBook Air 13-inch Early 2014, model identifier MacBookAir6,2
 
 > [!CAUTION]
-> The NixOS path is a destructive operating-system installer. It shows writable disks and requires an exact confirmation, but the selected disk is then erased completely.
+> The NixOS path is a destructive operating-system installer. It shows writable disks and requires either a typed confirmation or an exact matching `--confirm-erase` device, but the selected disk is then erased completely.
 
 ## Quick start
 
@@ -34,6 +34,112 @@ bash /tmp/install.sh
 ```
 
 Piping a mutable GitHub branch into a shell trusts the GitHub account and current repository contents. Pin the raw URL to a reviewed commit for repeatable installation.
+
+### Installer options
+
+Options can supply some or all answers. Supplied values skip their corresponding prompts; omitted values remain interactive. Pass arguments to a curl-piped script with `bash -s --`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codingtino/nix/main/install.sh |
+  bash -s -- --user tino --hostname NIXOS --disk /dev/nvme0n1
+```
+
+Use `--non-interactive` to prohibit every prompt. Missing or contradictory required values then fail before disk erasure. The exact value passed to `--confirm-erase` must match the selected disk.
+
+| Option | Meaning |
+|---|---|
+| `-h`, `--help` | Show built-in option help and exit |
+| `--non-interactive` | Never prompt; currently NixOS-only |
+| `--user NAME` | NixOS username or existing macOS admin short name |
+| `--password PASSWORD` | NixOS login password as a plain command-line argument |
+| `--password-file PATH` | Read the NixOS login password from a file |
+| `--hostname NAME` | Installed NixOS hostname |
+| `--hardware-profile auto\|none\|NAME` | Use the conservative DMI suggestion, no profile, or an exact pinned nixos-hardware export |
+| `--disk DEVICE` | Exact writable target disk shown by `lsblk` |
+| `--broadcom-sta yes\|no` | Explicitly enable or disable proprietary Broadcom STA/WL support |
+| `--encrypt yes\|no` | Enable or disable LUKS2 encryption |
+| `--encryption-password PASSWORD` | Supply a separate LUKS passphrase in plain text |
+| `--encryption-password-file PATH` | Read a separate LUKS passphrase from a file |
+| `--reuse-login-password` | Reuse the login password as the LUKS passphrase |
+| `--hibernation yes\|no` | Enable hibernation; `yes` forces disk swap and disables zram |
+| `--swap yes\|no` | Enable or disable all swap when hibernation is disabled |
+| `--disk-swap yes\|no` | Select persistent partition/LV swap when swap is enabled |
+| `--zram yes\|no` | Select compressed RAM swap when swap is enabled |
+| `--swap-size GIB`, `--swapsize GIB` | Persistent swap size as a whole number of GiB |
+| `--confirm-erase DEVICE` | Authorize erasure without the final typed prompt only when it exactly matches the selected disk |
+
+Options support both `--name value` and `--name=value`. Boolean values accept `yes/no`, `true/false`, `1/0`, and `y/n` case-insensitively.
+
+#### Password input
+
+Plain-text password flags are supported as requested, but they can expose secrets in shell history and process listings:
+
+```bash
+# Convenient, but intentionally insecure:
+curl -fsSL https://raw.githubusercontent.com/codingtino/nix/main/install.sh |
+  bash -s -- --user tino --password asdasd
+```
+
+Password files are safer. Each must contain only the password, optionally followed by a newline. Use restrictive permissions; `/run` is temporary memory-backed storage on the installer:
+
+```bash
+umask 077
+read -r -s -p 'Login password: ' login_password; printf '\n'
+printf '%s' "$login_password" >/run/nixos-login-password
+unset login_password
+
+read -r -s -p 'Disk password: ' disk_password; printf '\n'
+printf '%s' "$disk_password" >/run/nixos-disk-password
+unset disk_password
+```
+
+The installer reads these files before erasing the disk and does not copy them into the installed system or Nix store. A reboot clears `/run`.
+
+#### Fully unattended examples
+
+Encrypted hibernation with password files:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codingtino/nix/main/install.sh |
+  bash -s -- \
+    --non-interactive \
+    --user tino \
+    --password-file /run/nixos-login-password \
+    --hostname NIXOS \
+    --hardware-profile auto \
+    --disk /dev/nvme0n1 \
+    --broadcom-sta no \
+    --encrypt yes \
+    --encryption-password-file /run/nixos-disk-password \
+    --hibernation yes \
+    --swap-size 20 \
+    --confirm-erase /dev/nvme0n1
+```
+
+With hibernation enabled, `--swap yes` and `--disk-swap yes` are implicit and zram is forced off. Supplying conflicting values such as `--swap no`, `--disk-swap no`, or `--zram yes` is rejected.
+
+An unencrypted installation using both ordinary disk swap and zram:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codingtino/nix/main/install.sh |
+  bash -s -- \
+    --non-interactive \
+    --user tino \
+    --password asdasd \
+    --hostname NIXOS \
+    --hardware-profile auto \
+    --disk /dev/nvme0n1 \
+    --broadcom-sta no \
+    --encrypt no \
+    --hibernation no \
+    --swap yes \
+    --disk-swap yes \
+    --zram yes \
+    --swap-size 8 \
+    --confirm-erase /dev/nvme0n1
+```
+
+Use `--swap no` after `--hibernation no` for no swap. When `--swap yes` is selected, at least one of `--disk-swap yes` and `--zram yes` is required. `--swap-size` is required only for disk-backed swap and must be at least RAM plus 4 GiB for hibernation.
 
 ## NixOS installer
 
