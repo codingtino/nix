@@ -1,8 +1,11 @@
 { ... }:
 {
-  dendritic.nixos.NIXOS = {
+  dendritic.nixos.NIXOS = { userName, ... }: {
     programs = {
       mangowc.enable = true;
+      # The native DankGreeter module currently uses Niri to host the login UI;
+      # MangoWC remains the default user session.
+      niri.enable = true;
 
       dms-shell = {
         enable = true;
@@ -22,9 +25,10 @@
 
     services.displayManager = {
       defaultSession = "mango";
-      sddm = {
+      dms-greeter = {
         enable = true;
-        wayland.enable = true;
+        compositor.name = "niri";
+        configHome = "/home/${userName}";
       };
     };
 
