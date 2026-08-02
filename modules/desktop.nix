@@ -58,6 +58,20 @@
         requires = [ "graphical-session.target" ];
         after = [ "graphical-session.target" ];
       };
+
+      xdg.configFile."systemd/user/dms.service.d/local-wait-for-wayland.conf" = {
+        text = ''
+          [Unit]
+          After=mango-session.target
+
+          [Service]
+          Restart=on-failure
+          RestartSec=2
+          StartLimitBurst=20
+          StartLimitIntervalSec=60
+          ExecStartPre=/bin/sh -c 'for i in $(seq 1 20); do test -S "$XDG_RUNTIME_DIR/${'$'}WAYLAND_DISPLAY:-wayland-0}" && exit 0; sleep 0.25; done; exit 1'
+        '';
+      };
     };
 
   dendritic.home.default = { lib, pkgs, ... }:
