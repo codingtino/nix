@@ -96,6 +96,15 @@ let
         upstreamHardwareProfiles.apple-macbook-pro-14-1
         macBookProA1706Wireless
         macBookProA1706NvmeResume
+        # Fix: macbook model instead of pc105 for correct @/^</< mapping on German keyboard
+        {
+          services.xserver.xkb = {
+            model = "macbook";
+            layout = "de";
+            variant = "mac";
+          };
+          console.keyMap = "de mac";
+        }
       ];
     };
   };
@@ -193,6 +202,13 @@ in
   flake = {
     darwinConfigurations."MACOS-NIX" = mkDarwinConfiguration {
       userName = "tino";
+    };
+
+    nixosConfigurations.system = mkNixosConfiguration {
+      userName = "tino";
+      hostName = "MBP-NIXOS";
+      hardwareConfiguration = inputs.nixos-hardware.nixosModules.apple-macbook-pro-14-2;
+      hardwareProfile = "apple-macbook-pro-14-2";
     };
 
     lib = {
