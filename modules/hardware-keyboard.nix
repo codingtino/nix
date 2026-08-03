@@ -1,11 +1,4 @@
-{ lib, ... }:
-let
-  mkStr = lib.mkOptionType {
-    name = "nullable-str";
-    description = "A string or empty string";
-    check = s: lib.isString s;
-  };
-in
+{ lib, config, ... }:
 {
   options.dendritic.nixos.hardware.keyboard = {
     model = lib.mkOption {
@@ -29,13 +22,11 @@ in
     kb = config.dendritic.nixos.hardware.keyboard;
     hasModel = kb.model != null;
     hasVariant = kb.variant != null;
-  in lib.mkMerge [
-    (lib.mkIf hasModel {
-      services.xserver.xkb = {
-        model = kb.model;
-        layout = kb.layout;
-        variant = lib.mkIf hasVariant kb.variant;
-      };
-    })
-  ];
+  in lib.mkIf hasModel {
+    services.xserver.xkb = {
+      model = kb.model;
+      layout = kb.layout;
+      variant = lib.mkIf hasVariant kb.variant;
+    };
+  };
 }
