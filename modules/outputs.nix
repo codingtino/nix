@@ -99,6 +99,7 @@ let
         # MacBook keyboard fix for German layout (@ symbol, ^/< keys)
         ./macbook-keyboard.nix
       ];
+      hardware.macbook-keyboard.enable = true;
     };
   };
 
