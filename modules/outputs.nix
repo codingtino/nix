@@ -88,7 +88,7 @@ let
         macBookProA1706Wireless
         macBookProA1706NvmeResume
       ];
-      dendritic.nixos.hardware.keyboard = {
+      services.xserver.xkb = {
         model = null;
         layout = "de";
         variant = null;
@@ -102,10 +102,10 @@ let
         macBookProA1706Wireless
         macBookProA1706NvmeResume
       ];
-      dendritic.nixos.hardware.keyboard = {
+      services.xserver.xkb = {
         model = "macbook78";
         layout = "de";
-        variant = null;
+        variant = "mac";
       };
     };
 
@@ -114,7 +114,7 @@ let
         upstreamHardwareProfiles.lenovo-thinkpad-l14-gen1-intel
         upstreamHardwareProfiles.common-pc-ssd
       ];
-      dendritic.nixos.hardware.keyboard = {
+      services.xserver.xkb = {
         model = "pc105";
         layout = "de";
         variant = null;
@@ -124,6 +124,22 @@ let
 
   hardwareProfiles = upstreamHardwareProfiles // localHardwareProfiles;
   hardwareProfileNames = builtins.attrNames hardwareProfiles;
+
+  # Extract keyboard config from a hardware profile
+  getKeyboardConfig = profileName:
+    if profileName == null then
+      { model = null; layout = "us"; variant = null; }
+    else if builtins.hasAttr profileName hardwareProfiles then
+      let
+        kb = hardwareProfiles.${profileName}.services.xserver.xkb;
+      in
+      {
+        model = kb.model;
+        layout = kb.layout;
+        variant = kb.variant;
+      }
+    else
+      { model = null; layout = "us"; variant = null; };
 
   mkNixosConfiguration =
     {
@@ -143,18 +159,7 @@ let
           [ hardwareProfiles.${hardwareProfile} ]
         else
           throw "Unknown hardware profile: ${hardwareProfile}";
-      keyboardConfig =
-        if hardwareProfile == null then
-          { model = null; layout = "us"; variant = null; }
-        else if builtins.hasAttr hardwareProfile hardwareProfiles then
-          hardwareProfiles.${hardwareProfile}.dendritic.nixos.hardware.keyboard // {
-            model = hardwareProfiles.${hardwareProfile}.dendritic.nixos.hardware.keyboard.model;
-            layout = hardwareProfiles.${hardwareProfile}.dendritic.nixos.hardware.keyboard.layout;
-            variant = hardwareProfiles.${hardwareProfile}.dendritic.nixos.hardware.keyboard.variant;
-          }
-        else
-          { model = null; layout = "us"; variant = null; };
-      hasMacbookKeyboard = keyboardConfig.model == "macbook78";
+      keyboardConfig = getKeyboardConfig hardwareProfile;
     in
     inputs.nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
@@ -173,7 +178,6 @@ let
         config.dendritic.nixos.NIXOS
         inputs.home-manager.nixosModules.home-manager
         hardwareConfiguration
-        ./hardware-keyboard.nix
         {
           home-manager = {
             useGlobalPkgs = true;
