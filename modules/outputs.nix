@@ -124,6 +124,8 @@ let
           [ hardwareProfiles.${hardwareProfile} ]
         else
           throw "Unknown hardware profile: ${hardwareProfile}";
+      macbookKeyboard =
+        if hardwareProfile == "apple-macbook-pro-14-2" then true else false;
     in
     inputs.nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
@@ -135,6 +137,7 @@ let
           hostName
           inputs
           userName
+          macbookKeyboard
           ;
       };
       modules = [
@@ -146,7 +149,7 @@ let
             useGlobalPkgs = true;
             useUserPackages = true;
             backupFileExtension = "hm-backup";
-            extraSpecialArgs = { inherit inputs userName; };
+            extraSpecialArgs = { inherit inputs userName macbookKeyboard; };
             users.${userName} = config.dendritic.home.default;
           };
         }
