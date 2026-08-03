@@ -96,15 +96,8 @@ let
         upstreamHardwareProfiles.apple-macbook-pro-14-1
         macBookProA1706Wireless
         macBookProA1706NvmeResume
-        # Fix: macbook model instead of pc105 for correct @/^</< mapping on German keyboard
-        {
-          services.xserver.xkb = {
-            model = "macbook";
-            layout = "de";
-            variant = "mac";
-          };
-          console.keyMap = "de mac";
-        }
+        # MacBook keyboard fix for German layout (@ symbol, ^/< keys)
+        ./macbook-keyboard.nix
       ];
     };
   };
