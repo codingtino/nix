@@ -204,7 +204,10 @@ let
             useGlobalPkgs = true;
             useUserPackages = true;
             backupFileExtension = "hm-backup";
-            extraSpecialArgs = { inherit inputs userName keyboardConfig = { model = null; layout = "us"; variant = null; }; };
+            extraSpecialArgs = {
+              inherit inputs userName;
+              keyboardConfig = { model = null; layout = "us"; variant = null; };
+            };
             users.${userName} = config.dendritic.home.default;
           };
         }
