@@ -88,8 +88,8 @@
         exec-once=dbus-update-activation-environment --systemd --all
         exec-once=systemctl --user start mango-session.target
 
-        # MacBook Pro 14,2 German keyboard (macbook model fixes @/^</< mapping)
-        ${lib.optionalString macbookKeyboard "xkb_rules_model=macbook\nxkb_rules_variant=mac\n"}xkb_rules_layout=de
+        # MacBook Pro 14,2 German keyboard (macbook78 model fixes @/^</< mapping)
+        ${lib.optionalString macbookKeyboard "xkb_rules_model=macbook78\nxkb_rules_variant=mac\n"}xkb_rules_layout=de
         repeat_rate=40
         repeat_delay=300
         tap_to_click=1
