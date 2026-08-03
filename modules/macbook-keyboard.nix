@@ -9,13 +9,4 @@
   options.hardware.macbook-keyboard = {
     enable = lib.mkEnableOption "MacBook Pro keyboard fix for German layout";
   };
-
-  config = lib.mkIf config.hardware.macbook-keyboard.enable {
-    # X server settings (only applies if X server is enabled)
-    services.xserver.xkb = lib.mkIf config.services.xserver.enable {
-      model = "macbook";
-      layout = "de";
-      variant = "mac";
-    };
-  };
 }
