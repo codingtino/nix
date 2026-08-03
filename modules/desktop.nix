@@ -88,8 +88,10 @@
         exec-once=dbus-update-activation-environment --systemd --all
         exec-once=systemctl --user start mango-session.target
 
-        # ThinkPad input defaults
+        # MacBook Pro 14,2 German keyboard (macbook model fixes @/^</< mapping)
+        xkb_rules_model=macbook
         xkb_rules_layout=de
+        xkb_rules_variant=mac
         repeat_rate=40
         repeat_delay=300
         tap_to_click=1
