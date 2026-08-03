@@ -88,6 +88,11 @@ let
         macBookProA1706Wireless
         macBookProA1706NvmeResume
       ];
+      dendritic.nixos.hardware.keyboard = {
+        model = null;
+        layout = "de";
+        variant = null;
+      };
     };
 
     apple-macbook-pro-14-2 = {
@@ -96,10 +101,24 @@ let
         upstreamHardwareProfiles.apple-macbook-pro-14-1
         macBookProA1706Wireless
         macBookProA1706NvmeResume
-        # MacBook keyboard fix for German layout (@ symbol, ^/< keys)
-        ./macbook-keyboard.nix
       ];
-      hardware.macbook-keyboard.enable = true;
+      dendritic.nixos.hardware.keyboard = {
+        model = "macbook78";
+        layout = "de";
+        variant = null;
+      };
+    };
+
+    lenovo-thinkpad-l14-gen1 = {
+      imports = [
+        upstreamHardwareProfiles.lenovo-thinkpad-l14-gen1-intel
+        upstreamHardwareProfiles.common-pc-ssd
+      ];
+      dendritic.nixos.hardware.keyboard = {
+        model = "pc105";
+        layout = "de";
+        variant = null;
+      };
     };
   };
 
@@ -124,8 +143,18 @@ let
           [ hardwareProfiles.${hardwareProfile} ]
         else
           throw "Unknown hardware profile: ${hardwareProfile}";
-      macbookKeyboard =
-        if hardwareProfile == "apple-macbook-pro-14-2" then true else false;
+      keyboardConfig =
+        if hardwareProfile == null then
+          { model = null; layout = "us"; variant = null; }
+        else if builtins.hasAttr hardwareProfile hardwareProfiles then
+          hardwareProfiles.${hardwareProfile}.dendritic.nixos.hardware.keyboard // {
+            model = hardwareProfiles.${hardwareProfile}.dendritic.nixos.hardware.keyboard.model;
+            layout = hardwareProfiles.${hardwareProfile}.dendritic.nixos.hardware.keyboard.layout;
+            variant = hardwareProfiles.${hardwareProfile}.dendritic.nixos.hardware.keyboard.variant;
+          }
+        else
+          { model = null; layout = "us"; variant = null; };
+      hasMacbookKeyboard = keyboardConfig.model == "macbook78";
     in
     inputs.nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
@@ -137,19 +166,20 @@ let
           hostName
           inputs
           userName
-          macbookKeyboard
+          keyboardConfig
           ;
       };
       modules = [
         config.dendritic.nixos.NIXOS
         inputs.home-manager.nixosModules.home-manager
         hardwareConfiguration
+        ./hardware-keyboard.nix
         {
           home-manager = {
             useGlobalPkgs = true;
             useUserPackages = true;
             backupFileExtension = "hm-backup";
-            extraSpecialArgs = { inherit inputs userName macbookKeyboard; };
+            extraSpecialArgs = { inherit inputs userName keyboardConfig; };
             users.${userName} = config.dendritic.home.default;
           };
         }
@@ -174,7 +204,7 @@ let
             useGlobalPkgs = true;
             useUserPackages = true;
             backupFileExtension = "hm-backup";
-            extraSpecialArgs = { inherit inputs userName; };
+            extraSpecialArgs = { inherit inputs userName keyboardConfig = { model = null; layout = "us"; variant = null; }; };
             users.${userName} = config.dendritic.home.default;
           };
         }

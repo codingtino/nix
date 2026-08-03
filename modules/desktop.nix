@@ -61,7 +61,7 @@
 
     };
 
-  dendritic.home.default = { lib, pkgs, macbookKeyboard, ... }:
+  dendritic.home.default = { lib, pkgs, keyboardConfig, ... }:
     lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
       xdg.configFile."systemd/user/dms.service.d/local-wait-for-wayland.conf" = {
         text = ''
@@ -88,8 +88,8 @@
         exec-once=dbus-update-activation-environment --systemd --all
         exec-once=systemctl --user start mango-session.target
 
-        # MacBook Pro 14,2 German keyboard (macbook78 model fixes @/^</< mapping)
-        ${lib.optionalString macbookKeyboard "xkb_rules_model=macbook78\n"}xkb_rules_layout=de
+        # Keyboard settings from hardware profile
+        ${lib.optionalString (keyboardConfig.model != null) "xkb_rules_model=${keyboardConfig.model}\n"}xkb_rules_layout=${keyboardConfig.layout}
         repeat_rate=40
         repeat_delay=300
         tap_to_click=1
