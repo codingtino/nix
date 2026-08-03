@@ -20,9 +20,6 @@ in
       variant = "mac";
     };
 
-    # Console keyboard settings
-    console.keyMap = "de mac";
-
     # Home Manager / DMS keyboard settings
     home-manager.sharedModules = [
       {
