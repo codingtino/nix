@@ -36,14 +36,16 @@
       nixpkgs.config = {
         allowUnfreePredicate = pkg:
           builtins.elem (lib.getName pkg) (
-            [ "terraform" ] ++ lib.optional enableBroadcomSta "broadcom-sta"
+            [ "terraform" "tailscale" ] ++ lib.optional enableBroadcomSta "broadcom-sta"
           );
         allowInsecurePredicate = pkg:
           enableBroadcomSta && lib.getName pkg == "broadcom-sta";
       };
 
       programs.zsh.enable = true;
-      environment.systemPackages = [ pkgs.bashInteractive ];
+      environment.systemPackages = [ pkgs.bashInteractive pkgs.tailscale ];
+
+      services.tailscale.enable = true;
 
       users.users.root.hashedPassword = "!";
       system.activationScripts.lockRootPassword = {
