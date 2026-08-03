@@ -146,10 +146,7 @@ let
             useGlobalPkgs = true;
             useUserPackages = true;
             backupFileExtension = "hm-backup";
-            extraSpecialArgs = {
-              inherit inputs userName;
-              macbookKeyboard = config.hardware.macbook-keyboard.enable;
-            };
+            extraSpecialArgs = { inherit inputs userName; };
             users.${userName} = config.dendritic.home.default;
           };
         }
@@ -204,7 +201,7 @@ in
     nixosConfigurations.system = mkNixosConfiguration {
       userName = "tino";
       hostName = "MBP-NIXOS";
-      hardwareConfiguration = inputs.nixos-hardware.nixosModules.apple-macbook-pro-14-2;
+      hardwareConfiguration = {};
       hardwareProfile = "apple-macbook-pro-14-2";
     };
 
