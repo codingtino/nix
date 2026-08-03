@@ -146,7 +146,10 @@ let
             useGlobalPkgs = true;
             useUserPackages = true;
             backupFileExtension = "hm-backup";
-            extraSpecialArgs = { inherit inputs userName; };
+            extraSpecialArgs = {
+              inherit inputs userName;
+              macbookKeyboard = config.hardware.macbook-keyboard.enable;
+            };
             users.${userName} = config.dendritic.home.default;
           };
         }
