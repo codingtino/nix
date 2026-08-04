@@ -91,6 +91,7 @@
         # Keyboard settings from hardware profile
         ${lib.optionalString (keyboardConfig.model != null) "xkb_rules_model=${keyboardConfig.model}\n"}xkb_rules_layout=${keyboardConfig.layout}
         ${lib.optionalString (keyboardConfig.variant != null) "xkb_rules_variant=${keyboardConfig.variant}\n"}
+        ${lib.optionalString (keyboardConfig.options != null) "xkb_rules_options=${keyboardConfig.options}\n"}
         repeat_rate=40
         repeat_delay=300
         tap_to_click=1
