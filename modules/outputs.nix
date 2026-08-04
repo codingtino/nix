@@ -106,6 +106,7 @@ let
         model = "macbook78";
         layout = "de";
         variant = "mac";
+        options = "apple:badmap";
       };
     };
 
@@ -128,7 +129,7 @@ let
   # Extract keyboard config from a hardware profile
   getKeyboardConfig = profileName:
     if profileName == null then
-      { model = null; layout = "us"; variant = null; }
+      { model = null; layout = "us"; variant = null; options = null; }
     else if builtins.hasAttr profileName hardwareProfiles then
       let
         kb = hardwareProfiles.${profileName}.services.xserver.xkb;
@@ -137,9 +138,10 @@ let
         model = kb.model;
         layout = kb.layout;
         variant = kb.variant;
+        options = kb.options;
       }
     else
-      { model = null; layout = "us"; variant = null; };
+      { model = null; layout = "us"; variant = null; options = null; };
 
   mkNixosConfiguration =
     {
