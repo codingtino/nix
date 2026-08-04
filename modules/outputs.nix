@@ -106,7 +106,7 @@ let
         model = "macbook78";
         layout = "de";
         variant = "mac";
-        options = "apple:badmap";
+        options = null;
       };
     };
 
