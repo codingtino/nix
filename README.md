@@ -251,7 +251,7 @@ Any pre-erasure backup or archive-verification failure aborts before disk erasur
 
 Known validation boundaries for the first installation:
 
-- BCM43602 Wi-Fi uses the in-kernel `brcmfmac` driver; proprietary `broadcom_sta` is rejected. Historical firmware/regulatory issues can make Wi-Fi unreliable, so use USB Ethernet for installation.
+- BCM43602 Wi-Fi uses the in-kernel `brcmfmac` driver; proprietary `broadcom_sta` is rejected. The A1706 profiles install pinned community NVRAM calibration, disable broken firmware WPA/SAE and roaming offload, use a stable generated connection MAC, and disable Wi-Fi power saving. Missing `.clm_blob`/`.txcap_blob` warnings remain expected.
 - The internal keyboard/trackpad, Intel graphics, NVMe, display, USB, Thunderbolt, camera, and Bluetooth have upstream driver paths, but this exact NixOS configuration still needs testing on the laptop.
 - Touch Bar and Touch ID are not enabled. The available Touch Bar code is an out-of-tree kernel driver with model-specific hard-freeze risk; use an external keyboard when Escape or function keys are needed.
 - Internal audio is not claimed until tested; USB or HDMI audio is the fallback.

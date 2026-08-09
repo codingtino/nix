@@ -42,10 +42,36 @@ let
     };
 
   macBookProA1706Wireless =
-    { enableBroadcomSta, ... }:
+    {
+      enableBroadcomSta,
+      pkgs,
+      ...
+    }:
+    let
+      bcm43602NvramSource = pkgs.fetchurl {
+        url = "https://raw.githubusercontent.com/DeyAgrO/macbook-pro-13-2-linux/1d52273baa4d86f71113b4e65a181c839fce94fb/firmware/brcmfmac43602-pcie.txt";
+        hash = "sha256-mXstlbXugi2lf3BPd+mF/5lbFRw3BbMu5GVuJcH2xH4=";
+      };
+      bcm43602Nvram = pkgs.runCommand "brcmfmac43602-apple-nvram" { } ''
+        install -Dm644 ${bcm43602NvramSource} "$out/lib/firmware/brcm/brcmfmac43602-pcie.txt"
+        substituteInPlace "$out/lib/firmware/brcm/brcmfmac43602-pcie.txt" \
+          --replace-fail "macaddr=xx:xx:xx:xx:xx:xx" "macaddr=00:90:4c:0d:f4:3e"
+      '';
+    in
     {
       # A1706 uses BCM43602 with brcmfmac, not B43 or the proprietary STA driver.
-      networking.enableB43Firmware = false;
+      boot.extraModprobeConfig = ''
+        options brcmfmac feature_disable=0x82000 roamoff=1
+      '';
+      hardware.firmware = [ bcm43602Nvram ];
+      networking = {
+        enableB43Firmware = false;
+        networkmanager.wifi = {
+          macAddress = "stable";
+          powersave = false;
+          scanRandMacAddress = false;
+        };
+      };
       assertions = [
         {
           assertion = !enableBroadcomSta;
