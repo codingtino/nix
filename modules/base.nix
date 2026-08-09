@@ -103,7 +103,8 @@
       lib,
       pkgs,
       userName,
-    }:
+      inputs: {},
+      ...
     {
       home = {
         username = userName;
