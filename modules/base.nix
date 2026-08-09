@@ -55,17 +55,7 @@
         '';
       };
 
-      users.users.${userName} = {
-        isNormalUser = true;
-        description = userName;
-        shell = pkgs.zsh;
-        extraGroups = [
-          "input"
-          "networkmanager"
-          "video"
-          "wheel"
-        ];
-      };
+
     };
 
   dendritic.darwin."MACOS-NIX" =
@@ -105,10 +95,7 @@
         systemPackages = [ pkgs.bashInteractive ];
       };
 
-      users.users.${userName} = {
-        home = "/Users/${userName}";
-        shell = pkgs.zsh;
-      };
+
     };
 
   dendritic.home.default =
