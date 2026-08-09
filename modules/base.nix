@@ -100,14 +100,14 @@
 
   dendritic.home.default =
     {
+      lib,
       pkgs,
       userName,
-      ...
     }:
     {
       home = {
         username = userName;
-        homeDirectory = if pkgs.stdenv.hostPlatform.isDarwin then "/Users/${userName}" else "/home/${userName}";
+        homeDirectory = lib.mkForce (if pkgs.stdenv.hostPlatform.isDarwin then "/Users/${userName}" else "/home/${userName}");
         stateVersion = "26.05";
       };
 
