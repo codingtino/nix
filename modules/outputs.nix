@@ -88,11 +88,7 @@ let
         macBookProA1706Wireless
         macBookProA1706NvmeResume
       ];
-      services.xserver.xkb = {
-        model = null;
-        layout = "de";
-        variant = null;
-      };
+      services.xserver.xkb.layout = "de";
     };
 
     apple-macbook-pro-14-2 = {
@@ -106,7 +102,6 @@ let
         model = "macbook78";
         layout = "de";
         variant = "mac";
-        options = null;
       };
     };
 
@@ -118,7 +113,6 @@ let
       services.xserver.xkb = {
         model = "pc105";
         layout = "de";
-        variant = null;
       };
     };
   };
@@ -135,10 +129,10 @@ let
         kb = hardwareProfiles.${profileName}.services.xserver.xkb;
       in
       {
-        model = kb.model;
-        layout = kb.layout;
-        variant = kb.variant;
-        options = kb.options;
+        model = kb.model or null;
+        layout = kb.layout or "us";
+        variant = kb.variant or null;
+        options = kb.options or null;
       }
     else
       { model = null; layout = "us"; variant = null; options = null; };

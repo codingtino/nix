@@ -432,7 +432,7 @@ Local wrapper flakes call the exported builders with local values. This separate
 
 - The repository `flake.lock` pins shared inputs.
 - Each local wrapper has its own lock that pins the repository revision used by that machine.
-- Disk partitioning, UUIDs, encryption metadata, passwords, SSH keys, and hostnames are local state.
+- Disk partitioning, UUIDs, encryption metadata, passwords, private SSH keys, and hostnames are local state. Authorized public SSH keys may be declared as shared NixOS policy.
 - Homebrew and the Mac App Store remain mutable external systems rather than Nix-store reproducible artifacts.
 - Btrfs snapshots are not backups.
 - Broadcom STA is proprietary and may be marked insecure; it is enabled only after explicit consent for known-compatible hardware and is rejected on A1706.
