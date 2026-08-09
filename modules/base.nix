@@ -95,7 +95,10 @@
         systemPackages = [ pkgs.bashInteractive ];
       };
 
-
+      users.users.${userName} = {
+        home = "/Users/${userName}";
+        shell = pkgs.zsh;
+      };
     };
 
   dendritic.home.default =
