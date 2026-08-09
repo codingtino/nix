@@ -1,11 +1,11 @@
 { lib, ... }:
 {
   dendritic.darwin."MACOS-NIX" =
-    { pkgs, userName, ... }:
+    { userName, ... }:
     {
       users.users.${userName} = {
         home = "/Users/${userName}";
-        shell = pkgs.zsh;
+        shell = "/bin/zsh";
 
         # Add SSH public key for tino
         openssh.authorizedKeys.keys = [
@@ -24,25 +24,19 @@
 
   dendritic.nixos.NIXOS =
     { userName, ... }:
-    {
-      users.users.${userName} = {
-        isNormalUser = true;
-        description = userName;
-        shell = pkgs.zsh;
-        extraGroups = [
-          "input"
-          "networkmanager"
-          "video"
-          "wheel"
-        ];
+    lib.mkMerge [
+      {
+        users.users.${userName} = {
+          # Add SSH public key for tino
+          openssh.authorizedKeys.keys = [
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK9NGlk8rEOSLKF7MsqoeRa/9idlKkPnl/gPNeuTnHe9 MBP"
+          ];
+        };
+      }
 
-        # Add SSH public key for tino
-        openssh.authorizedKeys.keys = [
-          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK9NGlk8rEOSLKF7MsqoeRa/9idlKkPnl/gPNeuTnHe9 MBP"
-        ];
-      };
-
-      # Passwordless sudo for tino
-      security.sudo.wheelNoPassword = true;
-    };
+      {
+        # Passwordless sudo for tino
+        security.sudo.wheelNoPassword = true;
+      }
+    ];
 }
