@@ -854,18 +854,11 @@ configure_broadcom() {
 
 find_efi_system_partition() {
   local disk=$1
-  local device
-  local partition_type
 
-  while IFS= read -r device; do
-    partition_type=$(blkid -s PART_ENTRY_TYPE -o value "$device" 2>/dev/null || true)
-    partition_type=$(printf '%s' "$partition_type" | tr '[:upper:]' '[:lower:]')
-    if [[ $partition_type == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" ]]; then
-      printf '%s\n' "$device"
-      return
-    fi
-  done < <(lsblk -nrpo NAME "$disk")
-  return 0
+  # blkid does not always expose PART_ENTRY_TYPE for an otherwise valid GPT
+  # partition. lsblk's PARTTYPE comes directly from the partition table.
+  lsblk -nrpo NAME,PARTTYPE "$disk" | \
+    awk 'tolower($2) == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" { print $1; exit }'
 }
 
 has_apple_t1_firmware() {
@@ -1019,7 +1012,7 @@ install_nixos() {
   [[ -d /sys/firmware/efi/efivars ]] || die "Boot the installer in UEFI mode."
   command -v nixos-install >/dev/null || die "nixos-install is unavailable; run this from the minimal ISO."
 
-  require_commands awk blkid blockdev btrfs cat curl find findmnt grep install lsblk mkfs.btrfs \
+  require_commands awk blockdev btrfs cat curl find findmnt grep install lsblk mkfs.btrfs \
     mkfs.fat mktemp mkswap mount nix nixos-enter nixos-generate-config nixos-install parted \
     partprobe rm sed sleep swapon swapoff sync systemctl tar tr udevadm umount wipefs xargs
 
