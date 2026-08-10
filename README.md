@@ -257,6 +257,21 @@ Known validation boundaries for the first installation:
 - Internal audio is not claimed until tested; USB or HDMI audio is the fallback.
 - The NVMe workaround improves resume, but suspend/resume can remain slow or unreliable. Hibernation therefore defaults to `no` on these models; test it only after ordinary boot and suspend are stable.
 
+#### Experimental T1 Touch Bar support
+
+The A1706 profiles expose `hardware.appleT1TouchBar.enable`, but keep it disabled by default. Enabling it builds pinned out-of-tree `apple-ibridge` and `apple-touchbar` modules for the selected NixOS kernel and loads them from the next generation’s initrd, avoiding a live USB driver rebind during activation. The module forces `skip_acpi_power=1` on probe, suspend, and resume because executing the original `ASOC.SOCW` ACPI power method can hard-freeze T1 MacBooks. It provides the firmware-rendered Escape/media/function-key layouts only; it does not implement custom application controls or Touch ID.
+
+Enable it only in the machine-local `hardwareConfiguration`, so a failed experiment can be removed without changing the shared profile:
+
+```nix
+hardwareConfiguration = {
+  imports = [ ./hardware-configuration.nix ];
+  hardware.appleT1TouchBar.enable = true;
+};
+```
+
+Keep a previous systemd-boot generation available. The default mode shows media controls and switches to F1–F12 while Fn is held; `hardware.appleT1TouchBar.fnMode` accepts the driver’s modes `0` through `4`, and `idleTimeout = -1` keeps the bar lit.
+
 ### Local-only machine configuration
 
 The installer creates:

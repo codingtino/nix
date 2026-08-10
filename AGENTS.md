@@ -54,7 +54,8 @@ Do not replace this with a conventional host/module tree or duplicate shared pol
 - `flake.lock`: shared dependency lock; update intentionally.
 - `install.sh`: cross-platform bootstrap; destructive on the NixOS ISO and non-destructive on macOS.
 - `modules/outputs.nix`: builders, upstream/local hardware profile composition, formatter/dev shell, compatibility outputs.
-- `modules/hardware-profiles.nix`: repository-owned hardware extensions, including A1706 Apple quirks, BCM43602 calibration, and NVMe resume fix.
+- `modules/hardware-profiles.nix`: repository-owned hardware extensions, including A1706 Apple quirks, BCM43602 calibration, NVMe resume fix, and opt-in T1 Touch Bar module.
+- `packages/apple-t1-touchbar.nix`: pinned experimental out-of-tree T1 kernel modules, built against the selected NixOS kernel.
 - `modules/base.nix`: platform/state versions, Nix settings, shells, root lock, Darwin user declaration.
 - `modules/hardware.nix`: trim/fwupd, zram, hibernation resume, optional Broadcom STA.
 - `modules/networking.nix`: NetworkManager, firewall, and OpenSSH policy.
@@ -119,9 +120,12 @@ These machines use Apple SPI input and T1/iBridge firmware stored on the Apple E
 - restore and verify the ESP after formatting;
 - never imply that ESP preservation saves macOS volumes or user data;
 - keep the NVMe D3cold workaround;
-- do not add unproven Touch Bar/Touch ID drivers with hard-freeze risk.
+- keep Touch Bar support explicit opt-in and never permit the T1 driver’s hard-freeze-prone ACPI power call;
+- do not claim Touch ID support.
 
-Live inspection on 2026-08-10 found the MacBookPro14,2 T1 stuck as `05ac:1281 Apple Mobile Device (Recovery Mode)` after the old installer preserved only `EFI/APPLE/LOG`. A cold power cycle did not recover it. Installing and fully updating macOS 13.7.8 restored Apple T1 firmware `14Y910` and a working Touch Bar. The restored ESP has three required files under `EFI/APPLE/EMBEDDEDOS`: `combined.memboot`, `FDRData`, and `version.plist`. Preserve and verify all three before erasure. Do not load an out-of-tree Touch Bar driver until T1 enumerates as `05ac:8600 iBridge` and the exact module is reviewed for the hard-freeze ACPI path.
+Live inspection on 2026-08-10 found the MacBookPro14,2 T1 stuck as `05ac:1281 Apple Mobile Device (Recovery Mode)` after the old installer preserved only `EFI/APPLE/LOG`. A cold power cycle did not recover it. Installing and fully updating macOS 13.7.8 restored Apple T1 firmware `14Y910` and a working Touch Bar. The restored ESP has three required files under `EFI/APPLE/EMBEDDEDOS`: `combined.memboot`, `FDRData`, and `version.plist`. Preserve and verify all three before erasure. The corrected reinstall retained all files and T1 now enumerates as `05ac:8600 iBridge`.
+
+Experimental Linux Touch Bar support uses pinned `AJ-dev-i60/t1-touchbar` revision `20d65c7b0fe6d05ea9734f869b27384a62de5109`. It builds on the live 6.18.40 kernel and is disabled by default behind `hardware.appleT1TouchBar.enable`. Both modules load from initrd on the next boot so activation does not live-rebind USB. The profile forces `apple_ibridge skip_acpi_power=1`; never expose or set `skip_acpi_power=0`, because the original `ASOC.SOCW` call can hard-freeze T1 machines. Keep a previous boot generation available for every live test. Touch ID remains unsupported.
 
 A1706 BCM43602 Wi-Fi uses in-kernel `brcmfmac`, never proprietary `broadcom_sta`/`wl`. The hardware module asserts that STA is disabled.
 
