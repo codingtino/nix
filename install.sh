@@ -868,13 +868,22 @@ find_efi_system_partition() {
   return 0
 }
 
-has_apple_esp_files() {
+has_apple_t1_firmware() {
   local root=$1
   local apple_directory
+  local embedded_os_directory
+  local firmware_file
+  local required_file
 
   apple_directory=$(find "$root/EFI" -maxdepth 1 -type d -iname apple -print -quit 2>/dev/null || true)
-  [[ -n $apple_directory ]] && \
-    [[ -n $(find "$apple_directory" -type f -print -quit 2>/dev/null || true) ]]
+  [[ -n $apple_directory ]] || return 1
+  embedded_os_directory=$(find "$apple_directory" -maxdepth 1 -type d -iname embeddedos -print -quit 2>/dev/null || true)
+  [[ -n $embedded_os_directory ]] || return 1
+
+  for required_file in combined.memboot FDRData version.plist; do
+    firmware_file=$(find "$embedded_os_directory" -maxdepth 1 -type f -iname "$required_file" -print -quit 2>/dev/null || true)
+    [[ -n $firmware_file && -s $firmware_file ]] || return 1
+  done
 }
 
 backup_apple_esp() {
@@ -893,10 +902,10 @@ backup_apple_esp() {
     die "Could not mount the existing Apple EFI System Partition: $esp_partition"
   fi
 
-  if ! has_apple_esp_files "$mount_dir"; then
+  if ! has_apple_t1_firmware "$mount_dir"; then
     umount "$mount_dir"
     rm -rf "$mount_dir"
-    die "The existing ESP has no EFI/APPLE files; refusing to erase firmware needed by the T1/Touch Bar."
+    die "The existing ESP lacks complete EFI/APPLE/EMBEDDEDOS T1 firmware; refusing to erase the disk."
   fi
 
   APPLE_ESP_BACKUP=/run/nixos-apple-esp.tar
@@ -925,8 +934,8 @@ restore_apple_esp() {
   [[ -s $APPLE_ESP_BACKUP ]] || die "The verified Apple EFI backup is unavailable after repartitioning."
   tar -C /mnt/boot -xpf "$APPLE_ESP_BACKUP"
   sync
-  has_apple_esp_files /mnt/boot || \
-    die "The Apple EFI contents were not restored successfully. Keep the installer running for recovery."
+  has_apple_t1_firmware /mnt/boot || \
+    die "The Apple T1 firmware was not restored successfully. Keep the installer running for recovery."
   log "Restored the preserved Apple EFI contents"
 }
 
@@ -1156,8 +1165,8 @@ install_nixos() {
   nixos-enter --root /mnt -c 'passwd --lock root'
   sync
   if [[ -n $APPLE_ESP_BACKUP ]]; then
-    has_apple_esp_files /mnt/boot || \
-      die "Apple EFI files disappeared during installation; the in-memory backup remains available for recovery."
+    has_apple_t1_firmware /mnt/boot || \
+      die "Apple T1 firmware disappeared during installation; the in-memory backup remains available for recovery."
     rm -f "$APPLE_ESP_BACKUP"
     APPLE_ESP_BACKUP=""
   fi

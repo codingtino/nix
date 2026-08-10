@@ -9,7 +9,7 @@ Built-in exact-DMI NixOS mappings currently cover:
 
 - Lenovo ThinkPad L14 Gen 1 Intel, machine types 20U1/20U2 (live-tested)
 - Apple MacBook Air 13-inch Early 2014, model identifier MacBookAir6,2
-- Apple MacBook Pro 13-inch Touch Bar 2016/2017, enclosure A1706, model identifiers MacBookPro13,2 and MacBookPro14,2 (configuration complete; live hardware validation pending)
+- Apple MacBook Pro 13-inch Touch Bar 2016/2017, enclosure A1706, model identifiers MacBookPro13,2 and MacBookPro14,2 (the MacBookPro14,2 system and Wi-Fi are live-tested; MacBookPro13,2 remains untested)
 
 There is no known Apple MacBook Pro **A1606**; A1706 is the likely enclosure number intended. Verify the model identifier as described in [MacBook Pro A1706 notes](#macbook-pro-a1706-notes).
 
@@ -207,7 +207,7 @@ The installer asks about hibernation first. Enabling it automatically enables di
 
 `nixos-generate-config` always creates the machine-specific local hardware module. It records filesystems, UUIDs, initrd modules, swap, CPU details, and storage topology. For LVM inside LUKS, the installer additionally records the outer LUKS UUID in the local wrapper because `nixos-generate-config` does not trace a filesystem through LVM to its encrypted container.
 
-A hardware profile is an additional set of model-specific quirks and defaults. Most names come directly from the pinned nixos-hardware input; this repository also supplies profiles for the two A1706 DMI identifiers that upstream does not currently cover. Upstream nixos-hardware does not provide a complete automatic DMI resolver, so the installer offers:
+A hardware profile is an additional set of model-specific quirks and defaults. Most names come directly from the pinned nixos-hardware input; this repository also supplies profiles for the two A1706 DMI identifiers that upstream does not currently cover. Repository-owned extensions live in `modules/hardware-profiles.nix`: they import the nearest upstream nixos-hardware profiles and layer only this project’s additional fixes on top, rather than forking nixos-hardware. Upstream nixos-hardware does not provide a complete automatic DMI resolver, so the installer offers:
 
 - conservative automatic suggestion
 - no profile
@@ -242,18 +242,18 @@ The result must be `MacBookPro13,2` (2016) or `MacBookPro14,2` (2017) for automa
 These T1 models need Apple firmware files from the original EFI System Partition to initialize iBridge devices. After destructive confirmation but **before `wipefs`**, the installer:
 
 1. locates the existing EFI System Partition on the selected disk
-2. requires non-empty `EFI/APPLE` contents
+2. requires non-empty `EFI/APPLE/EMBEDDEDOS/combined.memboot`, `FDRData`, and `version.plist` T1 firmware files
 3. archives and verifies the entire ESP in memory-backed `/run`
 4. recreates the disk and 1 GiB ESP
 5. restores the preserved files before installing systemd-boot
 
-Any pre-erasure backup or archive-verification failure aborts before disk erasure. A restoration failure after repartitioning stops the install and leaves the archive in `/run` for recovery. Missing Apple EFI files also abort; restore the original ESP from a backup or reinstall/update macOS first. Keeping macOS is the safest route for future Apple firmware updates, but it requires manual dual-boot partitioning or a separate target disk—the full-disk installer does not preserve a macOS volume. The automatic preservation step protects firmware only—**all volumes and user files on the selected disk are erased**.
+Any pre-erasure backup or archive-verification failure aborts before disk erasure. The check requires all three observed MacBookPro14,2 T1 payload files and rejects an `EFI/APPLE` tree containing only boot logs. A restoration failure after repartitioning stops the install and leaves the archive in `/run` for recovery. Missing Apple EFI firmware also aborts; restore it through macOS Internet Recovery/update first. Keeping macOS is the safest route for future Apple firmware updates, but it requires manual dual-boot partitioning or a separate target disk—the full-disk installer does not preserve a macOS volume. The automatic preservation step protects firmware only—**all volumes and user files on the selected disk are erased**.
 
 Known validation boundaries for the first installation:
 
 - BCM43602 Wi-Fi uses the in-kernel `brcmfmac` driver; proprietary `broadcom_sta` is rejected. The A1706 profiles install pinned community NVRAM calibration, disable broken firmware WPA/SAE and roaming offload, use a stable generated connection MAC, and disable Wi-Fi power saving. Missing `.clm_blob`/`.txcap_blob` warnings remain expected.
-- The internal keyboard/trackpad, Intel graphics, NVMe, display, USB, Thunderbolt, camera, and Bluetooth have upstream driver paths, but this exact NixOS configuration still needs testing on the laptop.
-- Touch Bar and Touch ID are not enabled. The available Touch Bar code is an out-of-tree kernel driver with model-specific hard-freeze risk; use an external keyboard when Escape or function keys are needed.
+- The complete MacBookPro14,2 system has been built, activated, and rebooted successfully. Wi-Fi is live-tested; internal audio, camera, Bluetooth, Thunderbolt, and suspend/resume still need focused hardware validation. MacBookPro13,2 has not been live-tested.
+- Touch Bar and Touch ID are not enabled in NixOS. After an earlier ESP preserved only boot logs, the live MacBookPro14,2 T1 remained in `05ac:1281` recovery mode even after a cold power cycle. Installing and fully updating macOS 13.7.8 restored T1 firmware `14Y910` and a working Touch Bar. The remaining Linux T1 Touch Bar driver is out of tree and includes a hard-freeze-prone ACPI path; it will not be enabled by default without an exact-model-safe build and controlled test. Touch ID has no supported Linux driver.
 - Internal audio is not claimed until tested; USB or HDMI audio is the fallback.
 - The NVMe workaround improves resume, but suspend/resume can remain slow or unreliable. Hibernation therefore defaults to `no` on these models; test it only after ordinary boot and suspend are stable.
 
@@ -387,7 +387,10 @@ The Darwin builder supports Apple Silicon and Intel Darwin. `macmon` and the pin
 - optional hibernation and zram
 - selected upstream or repository-owned hardware profile
 - NetworkManager and DHCP
-- OpenSSH with root login disabled
+- calibrated BCM43602 `brcmfmac` support on A1706, including stable generated MAC policy and disabled power saving
+- OpenSSH with root login disabled and the declared `tino` public key authorized
+- passwordless sudo for the declared NixOS user
+- Tailscale
 - DankGreeter login screen with synchronized DankMaterialShell theming
 - MangoWC as the default session
 - DankMaterialShell
@@ -417,6 +420,7 @@ The Darwin builder supports Apple Silicon and Intel Darwin. `macmon` and the pin
 - `dendritic.nixos.NIXOS` — reusable shared NixOS system behavior
 - `dendritic.darwin."MACOS-NIX"` — reusable Darwin system behavior
 - `dendritic.home.default` — reusable Home Manager behavior
+- `dendritic.hardwareProfiles` — repository-owned profiles layered over pinned nixos-hardware modules
 
 The flake exports:
 
@@ -427,6 +431,8 @@ The flake exports:
 - a default `darwinConfigurations.MACOS-NIX` for compatibility
 
 Local wrapper flakes call the exported builders with local values. This separates reusable policy from machine identity and generated state.
+
+`AGENTS.md` is the durable project context for Pi and compatible coding agents. Pi loads it automatically when started in this repository; run `/reload` after editing it in an existing session.
 
 ## Reproducibility boundaries
 
