@@ -8,7 +8,7 @@ let
   # Extract keyboard config from a hardware profile
   getKeyboardConfig = profileName:
     if profileName == null then
-      { model = null; layout = "us"; variant = null; options = null; }
+      { model = null; layout = "us"; variant = null; options = null; brightnessDevice = null; }
     else if builtins.hasAttr profileName config.dendritic.hardwareKeyboardConfigs then
       config.dendritic.hardwareKeyboardConfigs.${profileName}
     else if builtins.hasAttr profileName hardwareProfiles then
@@ -20,9 +20,10 @@ let
         layout = kb.layout or "us";
         variant = kb.variant or null;
         options = kb.options or null;
+        brightnessDevice = null;
       }
     else
-      { model = null; layout = "us"; variant = null; options = null; };
+      { model = null; layout = "us"; variant = null; options = null; brightnessDevice = null; };
 
   mkNixosConfiguration =
     {

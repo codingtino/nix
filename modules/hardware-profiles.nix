@@ -156,11 +156,15 @@ let
 in
 {
   dendritic.hardwareKeyboardConfigs = {
-    apple-macbook-pro-13-2.layout = "de";
+    apple-macbook-pro-13-2 = {
+      layout = "de";
+      brightnessDevice = "backlight:acpi_video0";
+    };
     apple-macbook-pro-14-2 = {
       model = "macbook78";
       layout = "de";
       variant = "mac";
+      brightnessDevice = "backlight:acpi_video0";
     };
     lenovo-thinkpad-l14-gen1 = {
       model = "pc105";

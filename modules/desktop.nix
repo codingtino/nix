@@ -61,7 +61,16 @@
 
     };
 
-  dendritic.home.default = { lib, pkgs, keyboardConfig, ... }:
+  dendritic.home.default =
+    {
+      lib,
+      pkgs,
+      keyboardConfig,
+      ...
+    }:
+    let
+      brightnessDevice = keyboardConfig.brightnessDevice or null;
+    in
     lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
       xdg.configFile."systemd/user/dms.service.d/local-wait-for-wayland.conf" = {
         text = ''
@@ -89,9 +98,15 @@
         exec-once=systemctl --user start mango-session.target
 
         # Keyboard settings from hardware profile
-        ${lib.optionalString (keyboardConfig.model != null) "xkb_rules_model=${keyboardConfig.model}\n"}xkb_rules_layout=${keyboardConfig.layout}
-        ${lib.optionalString (keyboardConfig.variant != null) "xkb_rules_variant=${keyboardConfig.variant}\n"}
-        ${lib.optionalString (keyboardConfig.options != null) "xkb_rules_options=${keyboardConfig.options}\n"}
+        ${
+          lib.optionalString (keyboardConfig.model != null) "xkb_rules_model=${keyboardConfig.model}\n"
+        }xkb_rules_layout=${keyboardConfig.layout}
+        ${lib.optionalString (
+          keyboardConfig.variant != null
+        ) "xkb_rules_variant=${keyboardConfig.variant}\n"}
+        ${lib.optionalString (
+          keyboardConfig.options != null
+        ) "xkb_rules_options=${keyboardConfig.options}\n"}
         repeat_rate=40
         repeat_delay=300
         tap_to_click=1
@@ -131,8 +146,15 @@
         bind=NONE,XF86AudioRaiseVolume,spawn,dms ipc call audio increment 3
         bind=NONE,XF86AudioLowerVolume,spawn,dms ipc call audio decrement 3
         bind=NONE,XF86AudioMute,spawn,dms ipc call audio mute
-        bind=NONE,XF86MonBrightnessUp,spawn,dms ipc call brightness increment 5
-        bind=NONE,XF86MonBrightnessDown,spawn,dms ipc call brightness decrement 5
+        ${
+          lib.optionalString (
+            brightnessDevice != null
+          ) "bind=NONE,XF86MonBrightnessUp,spawn,dms ipc call brightness increment 5 ${brightnessDevice}\n"
+        }${
+          lib.optionalString (
+            brightnessDevice != null
+          ) "bind=NONE,XF86MonBrightnessDown,spawn,dms ipc call brightness decrement 5 ${brightnessDevice}\n"
+        }
 
         # DMS windows and Ghostty
         windowrule=isfloating:1,appid:^org\.quickshell$
