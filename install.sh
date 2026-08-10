@@ -5,6 +5,9 @@
 
 set -Eeuo pipefail
 IFS=$'\n\t'
+# Do not let a caller's restrictive secret-file umask make Btrfs subvolume
+# roots inaccessible to nixos-install. Sensitive files use tighter scopes.
+umask 022
 
 TTY_DEVICE="/dev/tty"
 readonly REPOSITORY_REF="github:codingtino/nix"
@@ -903,7 +906,7 @@ backup_apple_esp() {
 
   APPLE_ESP_BACKUP=/run/nixos-apple-esp.tar
   rm -f "$APPLE_ESP_BACKUP"
-  if ! tar -C "$mount_dir" -cpf "$APPLE_ESP_BACKUP" .; then
+  if ! (umask 077; tar -C "$mount_dir" -cpf "$APPLE_ESP_BACKUP" .); then
     umount "$mount_dir"
     rm -rf "$mount_dir" "$APPLE_ESP_BACKUP"
     APPLE_ESP_BACKUP=""
