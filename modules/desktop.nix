@@ -46,6 +46,7 @@
         alsa.support32Bit = true;
         pulse.enable = true;
       };
+      services.upower.enable = true;
 
       hardware.bluetooth.enable = true;
       security = {

@@ -399,7 +399,7 @@ The Darwin builder supports Apple Silicon and Intel Darwin. `macmon` and the pin
 - Tailscale
 - DankGreeter login screen with synchronized DankMaterialShell theming
 - MangoWC as the default session
-- DankMaterialShell
+- DankMaterialShell with UPower-backed battery percentage and charging status
 - PipeWire
 - Bluetooth
 - firmware updates
