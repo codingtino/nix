@@ -1,5 +1,9 @@
 { ... }:
 {
+  dendritic.darwin."MACOS-NIX" = {
+    homebrew.casks = [ "ghostty" ];
+  };
+
   dendritic.home.default = { pkgs, ... }: {
     programs.ghostty = {
       enable = true;

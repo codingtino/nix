@@ -61,7 +61,9 @@ Do not replace this with a conventional host/module tree or duplicate shared pol
 - `modules/networking.nix`: NetworkManager, firewall, and OpenSSH policy.
 - `modules/user.nix`: NixOS user, authorized public key, groups, and passwordless sudo.
 - `modules/desktop.nix`: MangoWC, DankMaterialShell, DankGreeter/Niri host, PipeWire, Bluetooth, and Mango configuration.
-- Other feature modules under `modules/`: shared CLI tools, fonts, Ghostty, Helix, Git, shell, locale, Herdr, and macOS apps/defaults.
+- `modules/programs/*.nix`: one shared Home Manager feature module per configured application; Ghostty also owns its platform-specific NixOS/Homebrew installation choice.
+- `modules/packages.nix`: shared package-only tools that do not yet have application settings.
+- Other feature modules under `modules/`: fonts, locale, and macOS apps/defaults.
 
 ## Local wrappers and state boundaries
 

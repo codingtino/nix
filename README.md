@@ -386,6 +386,22 @@ The Darwin builder supports Apple Silicon and Intel Darwin. `macmon` and the pin
 - curl
 - current stable Bash
 
+### Application configuration files
+
+Each configured shared application has its own typed Nix/Home Manager module under `modules/programs/`, including Ghostty, Helix, Git, Bat, Btop, Bash, Zsh, Eza, Fzf, and Herdr. These modules are applied to both NixOS and macOS through `dendritic.home.default`.
+
+Ghostty is the only platform-specific installation exception: `modules/programs/ghostty.nix` installs the Nix package on NixOS and the Homebrew cask on macOS, while applying the same Home Manager settings on both systems. Tools that currently need installation but no application settings—Curl, Rsync, Terraform, Tree, and Wget—remain grouped in `modules/packages.nix` rather than having empty per-tool modules.
+
+To change an application's configuration, edit its matching file, for example:
+
+```text
+modules/programs/ghostty.nix
+modules/programs/helix.nix
+modules/programs/zsh.nix
+```
+
+New `.nix` files anywhere below `modules/` are automatically imported by `import-tree`; no central import list needs updating.
+
 ### NixOS
 
 - x86-64 platform and UEFI systemd-boot
@@ -421,7 +437,7 @@ The Darwin builder supports Apple Silicon and Intel Darwin. `macmon` and the pin
 
 ## Architecture
 
-`flake.nix` uses flake-parts and import-tree. Feature files under `modules/` contribute deferred modules to:
+`flake.nix` uses flake-parts and import-tree. Feature files anywhere below `modules/`, including the per-application files in `modules/programs/`, contribute deferred modules to:
 
 - `dendritic.nixos.NIXOS` — reusable shared NixOS system behavior
 - `dendritic.darwin."MACOS-NIX"` — reusable Darwin system behavior

@@ -13,7 +13,8 @@ let
     };
   };
 
-  mkHerdr = pkgs:
+  mkHerdr =
+    pkgs:
     let
       system = pkgs.stdenv.hostPlatform.system;
       source = sources.${system} or (throw "Herdr is not packaged for ${system}");
@@ -44,12 +45,14 @@ let
     };
 in
 {
-  perSystem = { pkgs, ... }:
+  perSystem =
+    { pkgs, ... }:
     lib.mkIf (builtins.hasAttr pkgs.stdenv.hostPlatform.system sources) {
       packages.herdr = mkHerdr pkgs;
     };
 
-  dendritic.home.default = { pkgs, ... }:
+  dendritic.home.default =
+    { pkgs, ... }:
     lib.mkIf (builtins.hasAttr pkgs.stdenv.hostPlatform.system sources) {
       home.packages = [ (mkHerdr pkgs) ];
 
