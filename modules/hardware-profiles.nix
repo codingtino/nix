@@ -104,54 +104,32 @@ let
       };
     };
 
-  macBookProA1706TouchBar =
-    {
-      config,
-      lib,
-      pkgs,
-      ...
-    }:
+  macBookPro142TouchBar =
+    { config, pkgs, ... }:
     let
-      cfg = config.hardware.appleT1TouchBar;
       touchBarModule = pkgs.callPackage ../packages/apple-t1-touchbar.nix {
         kernel = config.boot.kernelPackages.kernel;
       };
     in
     {
-      options.hardware.appleT1TouchBar = {
-        enable = lib.mkEnableOption "experimental Apple T1 Touch Bar support";
-        fnMode = lib.mkOption {
-          type = lib.types.ints.between 0 4;
-          default = 1;
-          description = "Touch Bar function-key mode; 1 shows media keys and Fn shows F1-F12";
-        };
-        idleTimeout = lib.mkOption {
-          type = lib.types.int;
-          default = -1;
-          description = "Seconds before the Touch Bar turns off; -1 keeps it on";
-        };
-      };
-
-      config = lib.mkIf cfg.enable {
-        warnings = [
-          "Experimental out-of-tree Apple T1 Touch Bar support is enabled; keep a previous boot generation available."
+      warnings = [
+        "Experimental out-of-tree Apple T1 Touch Bar support is enabled for MacBookPro14,2."
+      ];
+      boot = {
+        extraModulePackages = [ touchBarModule ];
+        initrd.kernelModules = [
+          "apple-ibridge"
+          "apple-touchbar"
         ];
-        boot = {
-          extraModulePackages = [ touchBarModule ];
-          initrd.kernelModules = [
-            "apple-ibridge"
-            "apple-touchbar"
-          ];
-          extraModprobeConfig = ''
-            options apple_ibridge skip_acpi_power=1
-            options apple_touchbar fnmode=${toString cfg.fnMode} idle_timeout=${toString cfg.idleTimeout}
-          '';
-        };
-        services.udev.extraRules = ''
-          ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="05ac", ATTR{idProduct}=="8600", ATTR{bConfigurationValue}="1"
-          ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="05ac", ATTR{idProduct}=="8600", TEST=="power/control", ATTR{power/control}="on"
+        extraModprobeConfig = ''
+          options apple_ibridge skip_acpi_power=1
+          options apple_touchbar fnmode=1 idle_timeout=-1
         '';
       };
+      services.udev.extraRules = ''
+        ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="05ac", ATTR{idProduct}=="8600", ATTR{bConfigurationValue}="1"
+        ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="05ac", ATTR{idProduct}=="8600", TEST=="power/control", ATTR{power/control}="on"
+      '';
     };
 in
 {
@@ -182,7 +160,6 @@ in
         macBookProA1706Input
         macBookProA1706Wireless
         macBookProA1706NvmeResume
-        macBookProA1706TouchBar
       ];
       services.xserver.xkb.layout = "de";
     };
@@ -193,7 +170,7 @@ in
         upstreamHardwareProfiles.apple-macbook-pro-14-1
         macBookProA1706Wireless
         macBookProA1706NvmeResume
-        macBookProA1706TouchBar
+        macBookPro142TouchBar
       ];
       services.xserver.xkb = {
         model = "macbook78";

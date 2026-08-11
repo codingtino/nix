@@ -252,25 +252,16 @@ Any pre-erasure backup or archive-verification failure aborts before disk erasur
 Known validation boundaries for the first installation:
 
 - BCM43602 Wi-Fi uses the in-kernel `brcmfmac` driver; proprietary `broadcom_sta` is rejected. The A1706 profiles install pinned community NVRAM calibration, disable broken firmware WPA/SAE and roaming offload, use a stable generated connection MAC, and disable Wi-Fi power saving. Missing `.clm_blob`/`.txcap_blob` warnings remain expected.
-- The complete MacBookPro14,2 system has been built, activated, and rebooted successfully. Wi-Fi is live-tested; internal audio, camera, Bluetooth, Thunderbolt, and suspend/resume still need focused hardware validation. MacBookPro13,2 has not been live-tested.
-- Touch Bar and Touch ID are not enabled in NixOS. After an earlier ESP preserved only boot logs, the live MacBookPro14,2 T1 remained in `05ac:1281` recovery mode even after a cold power cycle. Installing and fully updating macOS 13.7.8 restored T1 firmware `14Y910` and a working Touch Bar. The remaining Linux T1 Touch Bar driver is out of tree and includes a hard-freeze-prone ACPI path; it will not be enabled by default without an exact-model-safe build and controlled test. Touch ID has no supported Linux driver.
+- The complete MacBookPro14,2 system has been built, activated, and rebooted successfully. Wi-Fi, camera, and the T1 Touch Bar are live-tested; internal audio, Bluetooth, Thunderbolt, and suspend/resume still need focused hardware validation. MacBookPro13,2 has not been live-tested.
+- After an earlier ESP preserved only boot logs, the live MacBookPro14,2 T1 remained in `05ac:1281` recovery mode even after a cold power cycle. Installing and fully updating macOS 13.7.8 restored T1 firmware `14Y910`. The pinned Linux driver now works with its dangerous ACPI power call forcibly disabled. macOS testing confirmed that the far-right part of this machine's Touch Bar is physically defective; this is not a Linux key-mapping failure. Touch ID has no supported Linux driver.
 - Internal audio is not claimed until tested; USB or HDMI audio is the fallback.
 - The NVMe workaround improves resume, but suspend/resume can remain slow or unreliable. Hibernation therefore defaults to `no` on these models; test it only after ordinary boot and suspend are stable.
 
 #### Experimental T1 Touch Bar support
 
-The A1706 profiles expose `hardware.appleT1TouchBar.enable`, but keep it disabled by default. Enabling it builds pinned out-of-tree `apple-ibridge` and `apple-touchbar` modules for the selected NixOS kernel and loads them from the next generation’s initrd, avoiding a live USB driver rebind during activation. The module forces `skip_acpi_power=1` on probe, suspend, and resume because executing the original `ASOC.SOCW` ACPI power method can hard-freeze T1 MacBooks. It provides the firmware-rendered Escape/media/function-key layouts only; it does not implement custom application controls or Touch ID.
+The exact `apple-macbook-pro-14-2` profile automatically builds the pinned out-of-tree `apple-ibridge` and `apple-touchbar` modules for the selected NixOS kernel and loads them from the initrd. The closely related but untested MacBookPro13,2 profile does not enable them. The module forces `skip_acpi_power=1` on probe, suspend, and resume because executing the original `ASOC.SOCW` ACPI power method can hard-freeze T1 MacBooks.
 
-Enable it only in the machine-local `hardwareConfiguration`, so a failed experiment can be removed without changing the shared profile:
-
-```nix
-hardwareConfiguration = {
-  imports = [ ./hardware-configuration.nix ];
-  hardware.appleT1TouchBar.enable = true;
-};
-```
-
-Keep a previous systemd-boot generation available. The default mode shows media controls and switches to F1–F12 while Fn is held; `hardware.appleT1TouchBar.fnMode` accepts the driver’s modes `0` through `4`, and `idleTimeout = -1` keeps the bar lit.
+The fixed configuration uses the firmware-rendered media controls, switches to F1–F12 while Fn is held, and keeps the bar lit. It does not implement custom application controls, movable buttons, or Touch ID. Because the driver remains experimental and out of tree, keep an installer USB available during testing.
 
 ### Local-only machine configuration
 
