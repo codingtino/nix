@@ -376,6 +376,7 @@ The Darwin builder supports Apple Silicon and Intel Darwin. `macmon` and the pin
 - Helix
 - Ghostty settings
 - Git
+- Lazygit
 - Zsh
 - JetBrains Mono Nerd Font
 - Herdr 0.7.5 pinned upstream binary and configuration
@@ -388,7 +389,7 @@ The Darwin builder supports Apple Silicon and Intel Darwin. `macmon` and the pin
 
 ### Application configuration files
 
-Each configured shared application has its own typed Nix/Home Manager module under `modules/programs/`, including Ghostty, Helix, Git, Bat, Btop, Bash, Zsh, Eza, Fzf, and Herdr. These modules are applied to both NixOS and macOS through `dendritic.home.default`.
+Each configured shared application has its own typed Nix/Home Manager module under `modules/programs/`, including Ghostty, Helix, Git, Lazygit, Bat, Btop, Bash, Zsh, Eza, Fzf, and Herdr. These modules are applied to both NixOS and macOS through `dendritic.home.default`.
 
 Ghostty is the only platform-specific installation exception: `modules/programs/ghostty.nix` installs the Nix package on NixOS and the Homebrew cask on macOS, while applying the same Home Manager settings on both systems. Tools that currently need installation but no application settings—Curl, Rsync, Terraform, Tree, and Wget—remain grouped in `modules/packages.nix` rather than having empty per-tool modules.
 
