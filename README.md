@@ -363,6 +363,16 @@ sudo nix flake update --flake /etc/nix-darwin nix-config
 sudo darwin-rebuild switch --flake /etc/nix-darwin#system
 ```
 
+### Shared update alias
+
+Home Manager defines the same `nu` alias in Bash and Zsh on both platforms. It updates the local wrapper's locked `nix-config` input and switches to the resulting configuration only when the update succeeds:
+
+```bash
+nu
+```
+
+On NixOS it operates on `/etc/nixos#system` with `nixos-rebuild`; on macOS it operates on `/etc/nix-darwin#system` with `darwin-rebuild`. Because `nu` is also the conventional Nushell executable name, the alias must be renamed if Nushell is added later.
+
 The Darwin builder supports Apple Silicon and Intel Darwin. `macmon` and the pinned Herdr binary are installed only on Apple Silicon because their upstream artifacts are unavailable for Intel macOS.
 
 ## Managed configuration
