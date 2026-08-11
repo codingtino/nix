@@ -365,13 +365,13 @@ sudo darwin-rebuild switch --flake /etc/nix-darwin#system
 
 ### Shared update alias
 
-Home Manager defines the same `nu` alias in Bash and Zsh on both platforms. It updates the local wrapper's locked `nix-config` input and switches to the resulting configuration only when the update succeeds:
+Home Manager defines the same `nrs` (`Nix rebuild switch`) alias in Bash and Zsh on both platforms. It updates the local wrapper's locked `nix-config` input and switches to the resulting configuration only when the update succeeds:
 
 ```bash
-nu
+nrs
 ```
 
-On NixOS it operates on `/etc/nixos#system` with `nixos-rebuild`; on macOS it operates on `/etc/nix-darwin#system` with `darwin-rebuild`. Because `nu` is also the conventional Nushell executable name, the alias must be renamed if Nushell is added later.
+On NixOS it operates on `/etc/nixos#system` with `nixos-rebuild`; on macOS it operates on `/etc/nix-darwin#system` with `darwin-rebuild`.
 
 The Darwin builder supports Apple Silicon and Intel Darwin. `macmon` and the pinned Herdr binary are installed only on Apple Silicon because their upstream artifacts are unavailable for Intel macOS.
 
