@@ -237,7 +237,7 @@ system_profiler SPHardwareDataType | awk -F ': ' '/Model Identifier/ { print $2 
 cat /sys/class/dmi/id/product_name
 ```
 
-The result must be `MacBookPro13,2` (2016) or `MacBookPro14,2` (2017) for automatic support. The profiles provide early Apple SPI keyboard/trackpad loading, HiDPI/Intel/firmware defaults, libinput quirks, and an NVMe D3cold workaround needed for resume.
+The result must be `MacBookPro13,2` (2016) or `MacBookPro14,2` (2017) for automatic support. The profiles provide early Apple SPI keyboard/trackpad loading, the driver’s ISO-layout correction for German keyboards, HiDPI/Intel/firmware defaults, libinput quirks, and an NVMe D3cold workaround needed for resume.
 
 These T1 models need Apple firmware files from the original EFI System Partition to initialize iBridge devices. After destructive confirmation but **before `wipefs`**, the installer:
 

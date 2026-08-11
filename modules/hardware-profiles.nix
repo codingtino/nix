@@ -41,6 +41,16 @@ let
       };
     };
 
+  macBookProA1706IsoKeyboard =
+    { ... }:
+    {
+      # Apple SPI reports the German ISO-only key next to left Shift as TLDE
+      # unless its ISO correction is enabled, exchanging the physical < and ^ keys.
+      boot.extraModprobeConfig = ''
+        options applespi iso_layout=1
+      '';
+    };
+
   macBookProA1706Wireless =
     {
       enableBroadcomSta,
@@ -158,6 +168,7 @@ in
         upstreamHardwareProfiles.common-hidpi
         upstreamHardwareProfiles.common-pc-ssd
         macBookProA1706Input
+        macBookProA1706IsoKeyboard
         macBookProA1706Wireless
         macBookProA1706NvmeResume
       ];
@@ -168,6 +179,7 @@ in
       imports = [
         # MacBookPro14,1 supplies the shared Kaby Lake, Apple SPI and HiDPI setup.
         upstreamHardwareProfiles.apple-macbook-pro-14-1
+        macBookProA1706IsoKeyboard
         macBookProA1706Wireless
         macBookProA1706NvmeResume
         macBookPro142TouchBar
